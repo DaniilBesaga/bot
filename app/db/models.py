@@ -28,4 +28,4 @@ class DocumentChunk(Base):
     token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     page_from: Mapped[int | None] = mapped_column(Integer, nullable=True)
     page_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    embedding: Mapped[list[float]] = mapped_column(Vector(1536))
+    embedding: Mapped[list[float]] = mapped_column(Vector(384))

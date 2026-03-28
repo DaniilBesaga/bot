@@ -5,11 +5,13 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
-      POSTGRES_DB: bot
+      POSTGRES_DB: bot  # <--- ВНИМАНИЕ: тут 'bot', а в ошибке 'chatbot'
+      POSTGRES_HOST_AUTH_METHOD: trust # <--- ДОБАВЬТЕ ЭТО
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
 volumes:
   pgdata:

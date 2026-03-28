@@ -46,7 +46,7 @@ class ChunkRepository:
                    dc.text,
                    dc.page_from,
                    dc.page_to,
-                   dc.file_name,
+                   d.file_name,
                    1 - (dc.embedding <=> CAST(:embedding AS vector)) AS similarity
             FROM document_chunks dc
             JOIN documents d ON d.id = dc.document_id

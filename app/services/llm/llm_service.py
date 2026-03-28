@@ -3,11 +3,17 @@ from app.core.config import settings
 
 class LlmService:
     def __init__(self):
-        self.client = OpenAI(api_key=settings.OPEN_API_KEY)
+        # Берем настройки из вашего .env
+        self.client = OpenAI(
+            api_key=settings.OPENAI_API_KEY,
+            base_url=getattr(settings, "OPENAI_API_BASE", None)
+        )
 
     def generate_answer(self, prompt: str) -> str:
-        response = self.client.responses.create(
+        # В библиотеке OpenAI нет метода .responses.create
+        # Используем стандартный .chat.completions.create
+        response = self.client.chat.completions.create(
             model=settings.CHAT_MODEL, 
-            input=prompt
+            messages=[{"role": "user", "content": prompt}]
         )
-        return response.output_text
+        return response.choices[0].message.content

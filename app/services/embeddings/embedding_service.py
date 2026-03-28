@@ -1,13 +1,11 @@
-from openai import OpenAI
-from app.core.config import settings
+from sentence_transformers import SentenceTransformer
 
 class EmbeddingService:
     def __init__(self):
-        self.client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        # Модель скачается один раз при первом запуске (около 80 Мб)
+        self.model = SentenceTransformer('all-MiniLM-L6-v2')
 
-    def embed_text(self, text:str) -> list[float]:
-        response = self.client.embeddings.create(
-            model = settings.EMBEDDING_MODEL,
-            input = text
-        )
-        return response["data"][0]["embedding"]
+    def embed_text(self, text: str) -> list[float]:
+        # Просто превращаем текст в список чисел
+        embedding = self.model.encode(text)
+        return embedding.tolist()

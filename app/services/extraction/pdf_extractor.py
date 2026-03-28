@@ -1,8 +1,8 @@
-import fitz
+import pymupdf
 
 class PdfExtractor:
     def extract(self, path: str) -> dict:
-        doc = fitz.open(path)
+        doc = pymupdf.open(path)
         pages = []
 
         for i, page in enumerate(doc):

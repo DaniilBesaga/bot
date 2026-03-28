@@ -13,7 +13,7 @@ class ChatService:
 
     def ask(self, question: str) -> dict:
         question_embedding = self.embedding_service.embed_text(question)
-        chunks = self.vector_search.search(question_embedding, limit=settings.CHUNK_LIMIT)
+        chunks = self.vector_search.search(question_embedding, limit=settings.TOP_K)
 
         prompt = build_prompt(question, chunks)
 

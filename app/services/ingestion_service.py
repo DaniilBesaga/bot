@@ -32,7 +32,7 @@ class IngestionService:
             language=None
         )
 
-        chunks = self.chunker.chunk(clean_text)
+        chunks = self.chunker.chunk(cleaned_text)
 
         for chunk in chunks:
             embedding = self.embedding_service.embed_text(chunk["text"])
