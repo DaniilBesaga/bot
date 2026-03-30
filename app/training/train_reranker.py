@@ -8,16 +8,37 @@ from torch.optim import AdamW
 from app.training.datasets.reranker_dataset import RerankerDataset
 from app.services.retrieval.my_reranker import MyReranker
 
+class SmartCollate:
+    def __init__(self, tokenizer, max_length=384):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
 
-def collate_fn(batch, model: MyReranker):
-    questions = [item["question"] for item in batch]
-    chunks = [item["chunk"] for item in batch]
-    labels = torch.tensor([item["label"] for item in batch], dtype=torch.float32)
+    def __call__(self, batch):
+        questions = [item["question"] for item in batch]
+        chunks = [item["chunk"] for item in batch]
+        labels = torch.tensor([item["label"] for item in batch], dtype=torch.float32)
 
-    encoded = model.tokenize_pairs(questions, chunks, max_length=384)
-    encoded["labels"] = labels
+        encoded = self.tokenizer(
+            questions,
+            chunks,
+            padding=True,
+            truncation=True,
+            max_length=self.max_length
+        )
+        encoded["labels"] = labels
 
-    return encoded
+        return encoded
+        
+
+# def collate_fn(batch, model: MyReranker):
+#     questions = [item["question"] for item in batch]
+#     chunks = [item["chunk"] for item in batch]
+#     labels = torch.tensor([item["label"] for item in batch], dtype=torch.float32)
+
+#     encoded = model.tokenize_pairs(questions, chunks, max_length=384)
+#     encoded["labels"] = labels
+
+#     return encoded
 
 def evaluate(model, dataloader, device):
     model.eval()
@@ -46,21 +67,30 @@ def train():
 
     model = MyReranker(model_name="distilbert-base-uncased").to(device)
 
-    train_dataset = RerankerDataset("data/training/reranker_train.jsonl")
-    val_dataset = RerankerDataset("data/training/reranker_val.jsonl")
+    train_sql = "SELECT * FROM document_chunks LIMIT 100 WHERE test = 0"
+    train_dataset = RerankerDataset(train_sql, model.db)
+
+    val_sql = "SELECT * FROM document_chunks LIMIT 100 WHERE test = 1"
+    val_dataset = RerankerDataset(val_sql, model.db)
+
+    my_collate = SmartCollate(model.tokenizer)
 
     train_loader = DataLoader(
         train_dataset,
         batch_size=8,
         shuffle=True,
-        collate_fn=lambda batch: collate_fn(batch, model)
+        collate_fn=my_collate,
+        num_workers=4,
+        pin_memory=True
     )
 
     val_loader = DataLoader(
         val_dataset,
         batch_size=8,
         shuffle=False,
-        collate_fn=lambda batch: collate_fn(batch, model),
+        collate_fn=my_collate,
+        num_workers=4,
+        pin_memory=True
     )
 
     optimizer = AdamW(model.parameters(), lr=2e-5)
