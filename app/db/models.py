@@ -5,6 +5,8 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from sqlalchemy import Boolean, DateTime, Float, Index, String, Text, Integer, ForeignKey, UniqueConstraint
 from pgvector.sqlalchemy import Vector
 
+from datetime import timezone
+
 class Base(DeclarativeBase):
     pass
 
@@ -56,7 +58,7 @@ class RerankerModel(Base):
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
-        default=datetime.datetime.utcnow,
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
         nullable=False,
     )
 
@@ -85,7 +87,7 @@ class TrainingRun(Base):
 
     started_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
         nullable=False,
     )
     finished_at: Mapped[datetime.datetime | None] = mapped_column(
@@ -124,7 +126,7 @@ class RerankerExample(Base):
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
         nullable=False,
     )
 
@@ -148,7 +150,7 @@ class RerankerPrediction(Base):
 
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
-        default=datetime.utcnow,
+        default=lambda: datetime.datetime.now(datetime.timezone.utc),
         nullable=False,
     )
 

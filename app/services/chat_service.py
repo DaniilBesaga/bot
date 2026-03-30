@@ -1,7 +1,7 @@
 from app.core.config import settings
 from app.services.embeddings.embedding_service import EmbeddingService
 from app.services.retrieval.vector_search import VectorSearchService
-from app.services.retrieval.prompt_builder import build_prompt
+from app.services.retrieval.prompt_builder import build_prompt, build_prompt_question
 from app.services.llm.llm_service import LlmService
 from app.services.retrieval.rerank_inference import MyRerankerService
 
@@ -36,3 +36,22 @@ class ChatService:
                 ]    
             }
         
+    def ask_for_questions(self) -> dict:
+        chunks = self.vector_search.get_chunks()
+
+        prompt = build_prompt_question(chunks)
+
+        answer = [self.llm_service.generate_answer(prompt) for chunk in chunks]
+
+        return {
+            "question": answer,
+            "sources": [
+                {
+                    "file_name": chunk["file_name"],
+                    "chunk_index": chunk["chunk_index"],
+                    "vector_similarity": float(chunk.get("similarity", 0)),
+                    "rerank_score": float(chunk.get("rerank_score", 0))
+                }
+                for chunk in chunks
+            ]
+        }

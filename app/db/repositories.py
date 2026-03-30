@@ -62,3 +62,10 @@ class ChunkRepository:
         )
 
         return [dict(row._mapping) for row in result]
+    
+    def get_chunks(self):
+        sql = text("SELECT * FROM document_chunks")
+
+        result = self.db.execute(sql)
+
+        return [dict(row._mapping) for row in result]
