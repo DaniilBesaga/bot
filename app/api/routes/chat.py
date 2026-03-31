@@ -15,3 +15,7 @@ def get_db():
 @router.post("/chat")
 def chat(request: ChatRequest, db = Depends(get_db)):
     return ChatService(db).ask(request.question)
+
+@router.post("/chat/questions")
+def chat_for_questions(db = Depends(get_db)):
+    return ChatService(db).ask_for_questions()

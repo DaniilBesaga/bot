@@ -1,6 +1,6 @@
 from sqlalchemy import text
 import uuid
-from app.db.models import Document, DocumentChunk
+from app.db.models import Document, DocumentChunk, RerankerExample
 
 class DocumentRepository:
     def __init__(self, db):
@@ -69,3 +69,33 @@ class ChunkRepository:
         result = self.db.execute(sql)
 
         return [dict(row._mapping) for row in result]
+    
+    def get_questions(self):
+        sql = text("SELECT * FROM reranker_examples")
+
+        result = self.db.execute(sql)
+
+        return [dict(row._mapping) for row in result]
+    
+    def create_questions(self,
+            question: str,
+            chunk_text_snapshot: str,
+            chunk_id: uuid.UUID,
+            label: bool,
+            split: str,
+            source: str | None
+        ):
+        reranker_ex = RerankerExample(
+            question=question,
+            chunk_id=chunk_id,
+            chunk_text_snapshot=chunk_text_snapshot,
+            label=label,
+            split=split,
+            source=source
+        )
+        try:
+            self.db.add(reranker_ex)
+            self.db.flush()
+        except Exception as e:
+            print(f"Failed to add reranker example to db: {e}")
+            raise

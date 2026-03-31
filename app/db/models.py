@@ -33,6 +33,9 @@ class DocumentChunk(Base):
     page_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
     embedding: Mapped[list[float]] = mapped_column(Vector(384))
 
+    reranker_examples: Mapped[list["RerankerExample"]] = relationship(back_populates="chunk")
+    reranker_predictions: Mapped[list["RerankerPrediction"]] = relationship(back_populates="chunk")
+
 
 class RerankerModel(Base):
     __tablename__ = "reranker_models"

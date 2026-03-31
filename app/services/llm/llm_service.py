@@ -9,7 +9,7 @@ class LlmService:
             base_url=getattr(settings, "OPENAI_API_BASE", None)
         )
 
-    def generate_answer(self, prompt: str) -> str:
+    def generate_answer (self, prompt: str) -> str:
         # В библиотеке OpenAI нет метода .responses.create
         # Используем стандартный .chat.completions.create
         response = self.client.chat.completions.create(
