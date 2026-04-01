@@ -18,3 +18,6 @@ class PdfExtractor:
             "text": full_text,
             "pages": pages
         }
+    
+    def open_pdf(self, path: str) -> pymupdf.Document:
+        return pymupdf.open(path)

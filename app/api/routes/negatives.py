@@ -2,7 +2,7 @@ import os
 from fastapi import APIRouter, Depends
 from app.db.session import SessionLocal
 from app.services.ingestion_service import IngestionService
-from app.services.negative_gen import NegativeGenerationService
+from app.services.negative_gen_service import NegativeGenerationService
 
 def get_db():
     db = SessionLocal()

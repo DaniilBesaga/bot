@@ -2,6 +2,7 @@ import os
 from fastapi import APIRouter, Depends
 from app.db.session import SessionLocal
 from app.services.ingestion_service import IngestionService
+from app.services.process_document.process_document import ProcessDocumentService
 
 router = APIRouter()
 
@@ -35,3 +36,8 @@ def ingest(db=Depends(get_db)):
                     results.append(result)
 
     return {"message": "Ingestion completed", "results": results}
+
+@router.get("/pdf")
+def process_pdf(file_path: str, doc_id: str, db=Depends(get_db)):
+    service = ProcessDocumentService(db)
+    return service.process_document(file_path, doc_id)
