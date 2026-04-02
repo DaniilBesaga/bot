@@ -4,24 +4,27 @@ import numpy as np
 import cv2
 
 from app.services.process_document.helpers.geometry import Geometry
+from app.services.process_document.helpers.ocr import OCR
 
 class TableBlocks:
     def __init__(self, table_candidates: list[dict]):
         self.table_candidates = table_candidates
         self.geometry = Geometry()
 
-    def detect_table_candidates(self, page: fitz.Page, text_blocks: list[dict], image_regions: list[dict]) -> list[dict]:
+    @classmethod
+    def detect_table_candidates(cls, page: fitz.Page, image_regions: list[dict]) -> list[dict]:
         candidates = []
 
-        text_tables = self.detect_text_based_tables(page)
+        text_tables = TableBlocks.detect_text_based_tables(page)
         candidates.extend(text_tables)
 
-        visual_tables = self.detect_visual_table_like_regions(page, image_regions)
+        visual_tables = TableBlocks.detect_visual_table_like_regions(page, image_regions)
         candidates.extend(visual_tables)
 
-        return self.merge_overlapping_table_candidates(candidates)
+        return TableBlocks.merge_overlapping_table_candidates(candidates)
     
-    def detect_text_based_tables(self, page: fitz.Page) -> list[dict]:
+    @classmethod
+    def detect_text_based_tables(cls, page: fitz.Page) -> list[dict]:
         candidates = []
 
         tabs = page.find_tables()
@@ -30,7 +33,7 @@ class TableBlocks:
             bbox = (tab.bbox.x0, tab.bbox.y0, tab.bbox.x1, tab.bbox.y1)
 
             candidates.append({
-                "kind": "table_region",
+                "kind": "table_candidate",
                 "bbox": bbox,
                 "source_kind": "pymupdf_native",
                 "table_obj": tab
@@ -38,7 +41,8 @@ class TableBlocks:
 
         return candidates
     
-    def detect_visual_table_like_regions(self, page: fitz.Page) -> list[dict]:
+    @classmethod
+    def detect_visual_table_like_regions(cls, page: fitz.Page) -> list[dict]:
         candidates = []
 
         pix = page.get_pixmap()
@@ -76,7 +80,7 @@ class TableBlocks:
 
             if w > 100 and h > 50:
                 region_image = table_mask[y:y + h, x:x + w]
-                likelihood = self.estimate_table_likelihood(region_image)
+                likelihood = TableBlocks.estimate_table_likelihood(region_image)
 
                 if likelihood > 0.5:
                     candidates.append({
@@ -88,7 +92,8 @@ class TableBlocks:
 
         return candidates
     
-    def estimate_table_likelihood(self, region_image: np.ndarray) -> float:
+    @classmethod
+    def estimate_table_likelihood(cls, region_image: np.ndarray) -> float:
 
         """
         Оценивает вероятность, что сетка - это таблица.
@@ -103,7 +108,8 @@ class TableBlocks:
 
         return 0
 
-    def merge_overlapping_table_candidates(self, candidates: list[dict]) -> list[dict]:
+    @classmethod
+    def merge_overlapping_table_candidates(cls, candidates: list[dict]) -> list[dict]:
         """Объединяет кандидатов, чьи bbox сильно пересекаются (IoU)."""
         if not candidates:
             return []
@@ -116,7 +122,7 @@ class TableBlocks:
             is_overlapping = False
 
             for m in merged:
-                if self.geometry.bbox_iou(cand["bbox"], m["bbox"]) > 0.5:
+                if TableBlocks.geometry.bbox_iou(cand["bbox"], m["bbox"]) > 0.5:
                     is_overlapping = True
                     break
 
@@ -125,11 +131,31 @@ class TableBlocks:
 
         return merged
     
-    def extract_table_as_text(self, block: dict, page: fitz.Page) -> list[dict]:
-        # Если таблицу нашел сам PyMuPDF, у нас есть готовый объект
-        if block.get("source") == "pymupdf_native" and "table_obj" in block:
+    @classmethod
+    def extract_table_as_text(cls, block: dict, page: fitz.Page) -> str:
+        # 1. Если таблицу нашел сам PyMuPDF (родная таблица)
+        if block.get("source_kind") == "pymupdf_native" and "table_obj" in block:
             df = block["table_obj"].to_pandas()
             return df.to_markdown(index=False)
-        #Если это визуальный блок, извлекаем текст по координатам (с сохранением разрывов)
-        rect = block["bbox"]
-        return page.get_text("text", clip=rect)
+            
+        rect = fitz.Rect(block["bbox"])
+        
+        # 2. Пробуем извлечь системный текст по координатам
+        # Если PDF содержит текстовый слой поверх сетки таблицы
+        text = page.get_text("text", clip=rect).strip()
+        
+        if text:
+            return text
+            
+        # 3. Если текста нет (это скан или картинка), используем OCR
+        return OCR.extract_text_from_image_region(page, block["bbox"])
+
+    @classmethod
+    def classify_table_block(cls, block: dict, page) -> dict:
+        # Если пришло из PyMuPDF — это надежная структура
+        if block.get("source_kind") == "pymupdf_native":
+            block["role"] = "structured_table"
+        # Если нашли через CV2 — возможно, это просто графическая сетка
+        else:
+            block["role"] = "visual_table"
+        return block

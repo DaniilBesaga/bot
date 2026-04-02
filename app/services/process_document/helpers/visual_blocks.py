@@ -7,22 +7,23 @@ class VisualBlocks:
         self.blocks = blocks
         self.tolerance = tolerance
 
-    def extract_image_regions(self, page: fitz.Page) -> list[dict]:
+    @classmethod
+    def extract_image_regions(cls, page: fitz.Page) -> list[dict]:
         image_regions = []
 
-        pdf_images = self.try_extract_pdf_images(page)
+        pdf_images = VisualBlocks.try_extract_pdf_images(page)
 
         image_regions.extend(pdf_images)
 
         if not image_regions:
-            visual_regions = self.detect_visual_regions_from_render(page)
+            visual_regions = VisualBlocks.detect_visual_regions_from_render(page)
             image_regions.extend(visual_regions)
 
         return image_regions
 
         
-
-    def try_extract_pdf_images(self, page: fitz.Page) -> list[dict]:
+    @classmethod
+    def try_extract_pdf_images(cls, page: fitz.Page) -> list[dict]:
         result = []
 
         image_objects = page.get_images(full=True)
@@ -30,7 +31,7 @@ class VisualBlocks:
         for image_info in image_objects:
             xref = image_info[0]
 
-            bbox = self.try_get_image_bbox(page, xref)
+            bbox = VisualBlocks.try_get_image_bbox(page, xref)
 
             if bbox is None:
                 continue
@@ -42,11 +43,11 @@ class VisualBlocks:
             })
 
         return result
-    
-    def try_get_image_bbox(self, page: fitz.Page, xref) -> fitz.Rect | None:
+    @classmethod
+    def try_get_image_bbox(page: fitz.Page, xref) -> fitz.Rect | None:
         return page.get_image_rects(xref)
-    
-    def detect_visual_regions_from_render(self, page: fitz.Page) -> list[dict]:
+    @classmethod
+    def detect_visual_regions_from_render(page: fitz.Page) -> list[dict]:
         pix = page.get_pixmap()
 
         if pix.n >= 4:
@@ -76,3 +77,23 @@ class VisualBlocks:
                 })
 
         return result
+    
+    @classmethod
+    def classify_visual_block(cls, block: dict, page, page_layout: dict) -> dict:
+        bbox = block.get("bbox")
+        page_width = page_layout.get("page_width", 595)
+        page_height = page_layout.get("page_height", 842)
+        
+        w = bbox[2] - bbox[0]
+        h = bbox[3] - bbox[1]
+        
+        # Логотип: маленький, в верхней части страницы
+        if w < 150 and h < 150 and bbox[1] < page_height * 0.2:
+            block["role"] = "logo"
+        # Полностраничное изображение/скан
+        elif w > page_width * 0.8 and h > page_height * 0.7:
+            block["role"] = "page_render"
+        else:
+            block["role"] = "figure"
+            
+        return block

@@ -36,3 +36,43 @@ class Geometry:
             blocks, 
             key=lambda b: (round(b["bbox"][1] / tolerance), b["bbox"][0])
         )
+    
+    @classmethod
+    def remove_heavy_overlaps(blocks: list[dict], iou_threshold: float = 0.7) -> list[dict]:
+        """
+        Удаляет дубликаты и блоки, которые 'съедены' более важными объектами.
+        """
+        # Сортируем блоки по приоритету: сначала таблицы, потом картинки, потом текст
+        priority = {"table_candidate": 3, "image_region": 2, "text_block": 1}
+        sorted_blocks = sorted(blocks, key=lambda b: priority.get(b["kind"], 0), reverse=True)
+        
+        final_blocks = []
+        
+        for current_block in sorted_blocks:
+            is_covered = False
+            for master in final_blocks:
+                # Если текущий блок почти полностью внутри уже добавленного (более приоритетного)
+                if Geometry.calculate_intersection_ratio(current_block["bbox"], master["bbox"]) > iou_threshold:
+                    is_covered = True
+                    break
+            
+            if not is_covered:
+                final_blocks.append(current_block)
+                
+        # Возвращаем блоки в порядке их расположения на странице (сверху вниз)
+        return sorted(final_blocks, key=lambda b: (b["bbox"][1], b["bbox"][0]))
+
+    @classmethod
+    def calculate_intersection_ratio(bbox_small, bbox_large):
+        """Какую часть маленького блока занимает пересечение с большим."""
+        x0 = max(bbox_small[0], bbox_large[0])
+        y0 = max(bbox_small[1], bbox_large[1])
+        x1 = min(bbox_small[2], bbox_large[2])
+        y1 = min(bbox_small[3], bbox_large[3])
+        
+        if x1 <= x0 or y1 <= y0: return 0.0
+        
+        intersection_area = (x1 - x0) * (y1 - y0)
+        small_area = (bbox_small[2] - bbox_small[0]) * (bbox_small[3] - bbox_small[1])
+        
+        return intersection_area / small_area if small_area > 0 else 0
