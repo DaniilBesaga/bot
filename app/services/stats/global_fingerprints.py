@@ -39,3 +39,41 @@ def build_global_fingerprint_stats(blocks: list[dict]) -> dict:
         }
 
     return final_stats
+
+def build_fingerprint_position_stats(blocks: list[dict]) -> dict:
+    stats = defaultdict(list)
+
+    for block in blocks:
+        fp = block["fingerprint_text"]
+        stats[fp].append(block.get("position_index", 0))
+
+    result = {}
+    for fp, positions in stats.items():
+        result[fp] = {
+            "min_position": min(positions),
+            "max_position": max(positions),
+            "avg_position": sum(positions) / len(positions),
+            "position_span": max(positions) - min(positions),
+        }
+
+    return result
+
+def attach_global_features(
+    blocks: list[dict],
+    fp_stats: dict,
+    fp_position_stats: dict
+) -> None:
+    for block in blocks:
+        fp = block["fingerprint_text"]
+        fp_global = fp_stats.get(fp, {})
+        fp_pos = fp_position_stats.get(fp, {})
+
+        block["global_features"] = {
+            "global_block_count": fp_global.get("block_count", 1),
+            "global_doc_count": fp_global.get("doc_count", 1),
+            "avg_position_index_for_fp": fp_global.get("avg_position_index", 0.0),
+            "avg_relative_top_for_fp": fp_global.get("avg_relative_top", 0.0),
+            "avg_relative_bottom_for_fp": fp_global.get("avg_relative_bottom", 0.0),
+            "most_common_block_type_for_fp": fp_global.get("most_common_block_type", "unknown"),
+            "position_span_for_fp": fp_pos.get("position_span", 0),
+        }

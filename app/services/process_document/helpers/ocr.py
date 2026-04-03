@@ -2,10 +2,12 @@ import fitz
 import pytesseract
 from PIL import Image
 
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
 class OCR:
 
     @classmethod
-    def extract_text_from_image_region(page: fitz.Page, bbox: tuple[float, float, float, float], lang: str = 'rus+eng+rom') -> str:
+    def extract_text_from_image_region(cls, page: fitz.Page, bbox: tuple[float, float, float, float], lang: str = 'rus+eng+rom') -> str:
         """
         Вырезает область страницы по bbox и распознает на ней текст с помощью Tesseract.
         """

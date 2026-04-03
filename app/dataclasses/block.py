@@ -1,20 +1,26 @@
 from dataclasses import dataclass, field
 from typing import Optional, Any
 
-@dataclass
-class Block:
-    doc_id: str
-    block_id: str
-    company_id: Optional[str]
-    page_number: int
-    block_type: str
-    raw_text: str
-    bbox: tuple[float, float, float, float]
-    position_index: int
+from sqlalchemy import Column, Integer, String, Text, JSON
+from sqlalchemy.orm import declarative_base
 
-    normalized_text: str = ""
-    fingerprint_text: str = ""
+Base = declarative_base()
 
-    local_features: dict[str, Any] = field(default_factory=dict)
-    global_features: dict[str, Any] = field(default_factory=dict)
-    scores: dict[str, float] = field(default_factory=dict)
+class Block(Base):
+    __tablename__ = "document_blocks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    block_id = Column(String, unique=True, index=True, nullable=False)
+    doc_id = Column(String, index=True, nullable=False)
+    page_number = Column(Integer, index=True)
+    position_index = Column(Integer)
+    
+    # Metadata
+    kind = Column(String, nullable=False)  # "text_block", "image_block", "table_block"
+    role = Column(String, nullable=True)   # From your classify_primitive_blocks logic
+    bbox = Column(JSON, nullable=True)     # Stores coordinates [x0, y0, x1, y1]
+    
+    # Text content (Populated by BlocksPreparation)
+    raw_text = Column(Text, nullable=True, default="")
+    normalized_text = Column(Text, nullable=True, default="")
+    fingerprint_text = Column(Text, nullable=True, default="")

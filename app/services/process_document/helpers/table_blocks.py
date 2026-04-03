@@ -18,7 +18,7 @@ class TableBlocks:
         text_tables = TableBlocks.detect_text_based_tables(page)
         candidates.extend(text_tables)
 
-        visual_tables = TableBlocks.detect_visual_table_like_regions(page, image_regions)
+        visual_tables = TableBlocks.detect_visual_table_like_regions(page)
         candidates.extend(visual_tables)
 
         return TableBlocks.merge_overlapping_table_candidates(candidates)
@@ -30,7 +30,8 @@ class TableBlocks:
         tabs = page.find_tables()
 
         for tab in tabs:
-            bbox = (tab.bbox.x0, tab.bbox.y0, tab.bbox.x1, tab.bbox.y1)
+            x0, y0, x1, y1 = tab.bbox  # Распаковываем кортеж напрямую
+            bbox = (x0, y0, x1, y1)
 
             candidates.append({
                 "kind": "table_candidate",
@@ -122,7 +123,7 @@ class TableBlocks:
             is_overlapping = False
 
             for m in merged:
-                if TableBlocks.geometry.bbox_iou(cand["bbox"], m["bbox"]) > 0.5:
+                if Geometry.bbox_iou(cand["bbox"], m["bbox"]) > 0.5:
                     is_overlapping = True
                     break
 
@@ -148,10 +149,10 @@ class TableBlocks:
             return text
             
         # 3. Если текста нет (это скан или картинка), используем OCR
-        return OCR.extract_text_from_image_region(page, block["bbox"])
+        return OCR.extract_text_from_image_region(bbox=block["bbox"], page=page)
 
     @classmethod
-    def classify_table_block(cls, block: dict, page) -> dict:
+    def classify_table_block(cls, block: dict) -> dict:
         # Если пришло из PyMuPDF — это надежная структура
         if block.get("source_kind") == "pymupdf_native":
             block["role"] = "structured_table"

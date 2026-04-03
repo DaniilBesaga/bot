@@ -25,7 +25,7 @@ class Pipeline:
 
         # 4. Все остальное как обычно
         image_regions = VisualBlocks.extract_image_regions(page)
-        table_candidates = TableBlocks.detect_table_candidates(page, lines, image_regions)
+        table_candidates = TableBlocks.detect_table_candidates(page, image_regions)
 
         return {
             "doc_id": doc_id,
@@ -81,9 +81,10 @@ class Pipeline:
             if kind == "text_block":
                 TextBlocks.classify_text_block(b)
             elif kind == "image_block":
-                VisualBlocks.classify_visual_block(b, page, page_layout)
+                # Safer way to call in Pipeline
+                VisualBlocks.classify_visual_block(block=b, page=page, page_layout=page_layout)
             elif kind == "table_block":
-                TableBlocks.classify_table_block(b, page)
+                TableBlocks.classify_table_block(b)
         return blocks
 
     @classmethod
@@ -93,10 +94,37 @@ class Pipeline:
         blocks.sort(key=lambda b: (b["bbox"][1], b["bbox"][0]))
         
         for idx, block in enumerate(blocks):
+            block["doc_id"] = doc_id          # <--- ADD THIS
+            block["page_number"] = page_number # <--- ADD THIS (Good for metadata)
             block["position_index"] = idx
             # Формат: IDдокумента_pНомерСтраницы_blockНомерБлока
             block["block_id"] = f"{doc_id}_p{page_number}_block_{idx}"
             
+        return blocks
+    
+    @classmethod
+    def populate_blocks_text(cls, blocks: list[dict], page: fitz.Page) -> list[dict]:
+        """Проходится по всем блокам и извлекает для них текст, пока доступен объект page."""
+        for block in blocks:
+            kind = block.get("kind")
+            role = block.get("role")
+
+            if kind == "text_block":
+                # Текст уже собран в TextBlocks.make_line_from_spans, ничего не делаем
+                pass
+
+            elif kind == "table_block":
+                # Используем ваш отличный метод из TableBlocks
+                block["text"] = TableBlocks.extract_table_as_text(block, page)
+
+            elif kind == "image_block":
+                # Фильтруем мусор. Если это логотип — текст нам не нужен.
+                if role == "logo":
+                    block["text"] = ""
+                # Если это скан страницы или важный график, отправляем в OCR
+                else:
+                    block["text"] = OCR.extract_text_from_image_region(page, block["bbox"])
+                    
         return blocks
 
     @classmethod
@@ -112,7 +140,10 @@ class Pipeline:
         # 3. Классифицируем блоки (назначаем роли: заголовок, параграф, логотип и т.д.)
         classified_blocks = cls.classify_primitive_blocks(primitive_blocks, page_layout, page)
         
-        # 4. Индексируем и раздаем ID
-        final_blocks = cls.index_blocks(classified_blocks, doc_id, page_number)
+        # 4. НАПОЛНЯЕМ ТЕКСТОМ (Новый шаг!)
+        text_filled_blocks = cls.populate_blocks_text(classified_blocks, page)
+        
+        # 5. Индексируем и раздаем ID
+        final_blocks = cls.index_blocks(text_filled_blocks, doc_id, page_number)
         
         return final_blocks

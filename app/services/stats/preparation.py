@@ -1,4 +1,4 @@
-from app.services.stats.normalization import normalize_for_fingerprint, normalize_text
+from app.services.stats.normalization import extract_local_features, normalize_for_fingerprint, normalize_text
 
 class BlocksPreparation:
     @staticmethod
@@ -6,35 +6,21 @@ class BlocksPreparation:
         prepared = []
 
         for doc in all_documents:
-            doc_id = doc.get("doc_id", "unknown_doc")
 
             for block in doc.get("blocks", []):
-                raw_text = ""
-                kind = block.get("kind")
+                if "bbox" in block and not isinstance(block["bbox"], (list, tuple)):
+                    block["bbox"] = list(block["bbox"])
+                # Теперь всё лежит в одном ключе "text"!
+                raw_text = block.get("text", "").strip()
 
-                # --- Элегантный сбор текста по типу блока ---
-                if kind == "text_block":
-                    # У текстового блока текст уже собран в make_text_block
-                    raw_text = block.get("text", "")
+                doc_id_from_parent = doc.get("doc_id")
+                if doc_id_from_parent:
+                    block["doc_id"] = doc_id_from_parent
+                elif not block.get("doc_id"):
+                    block["doc_id"] = "unknown_doc"
 
-                elif kind == "image_block":
-                    # Если вы делали OCR для картинок, текст будет лежать здесь. 
-                    # Если нет - просто вернется пустая строка.
-                    raw_text = block.get("text", "")
-
-                elif kind == "table_block":
-                    # Таблицу можно превратить в строку (например, склеив ячейки)
-                    # Зависит от того, как вы храните table_obj
-                    raw_text = block.get("text_content", "") 
-
-                # Очищаем от лишних пробелов по краям
-                raw_text = raw_text.strip()
-
-                # --- Обогащение словаря ---
-                # Сохраняем все оригинальные метаданные (bbox, kind, role, position_index) 
-                # и просто добавляем новые ключи для статистики
-                block["doc_id"] = doc_id
                 block["raw_text"] = raw_text
+                block["local_features"] = extract_local_features(block)
                 
                 if raw_text:
                     block["normalized_text"] = normalize_text(raw_text)

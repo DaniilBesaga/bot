@@ -2,7 +2,7 @@ import datetime
 import uuid
 
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import Boolean, DateTime, Float, Index, String, Text, Integer, ForeignKey, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Column, DateTime, Float, Index, String, Text, Integer, ForeignKey, UniqueConstraint
 from pgvector.sqlalchemy import Vector
 
 from datetime import timezone
@@ -158,3 +158,74 @@ class RerankerPrediction(Base):
     )
 
     chunk: Mapped["DocumentChunk | None"] = relationship(back_populates="reranker_predictions")
+
+class Block(Base):
+    __tablename__ = "document_blocks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    block_id = Column(String, unique=True, index=True, nullable=False)
+    doc_id = Column(String, index=True, nullable=False)
+    page_number = Column(Integer, index=True)
+    position_index = Column(Integer)
+    
+    # Metadata
+    kind = Column(String, nullable=False)  # "text_block", "image_block", "table_block"
+    role = Column(String, nullable=True)   # From your classify_primitive_blocks logic
+    bbox = Column(JSON, nullable=True)     # Stores coordinates [x0, y0, x1, y1]
+    
+    # Text content (Populated by BlocksPreparation)
+    raw_text = Column(Text, nullable=True, default="")
+    normalized_text = Column(Text, nullable=True, default="")
+    fingerprint_text = Column(Text, nullable=True, default="")
+
+    contact_score = Column(Float, default=0.0)
+    boilerplate_score = Column(Float, default=0.0)
+    content_score = Column(Float, default=0.0)
+
+class Chunk(Base):
+    __tablename__ = "document_chunks"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    chunk_id = Column(String, unique=True, index=True, nullable=False)
+
+    doc_id = Column(String, index=True, nullable=False)
+
+    start_page = Column(Integer, index=True)
+    end_page = Column(Integer, index=True)
+
+    start_position_index = Column(Integer)
+    end_position_index = Column(Integer)
+
+    block_ids = Column(JSON, nullable=False, default=list)
+
+    chunk_type = Column(String, nullable=True)   # product_section / table_chunk / contact_chunk / mixed
+
+    raw_text = Column(Text, nullable=True, default="")
+    clean_text = Column(Text, nullable=True, default="")
+
+    heading_text = Column(Text, nullable=True)
+    heading_fingerprint = Column(Text, nullable=True)
+
+    avg_contact_score = Column(Float, default=0.0)
+    max_contact_score = Column(Float, default=0.0)
+
+    avg_boilerplate_score = Column(Float, default=0.0)
+    max_boilerplate_score = Column(Float, default=0.0)
+
+    avg_content_score = Column(Float, default=0.0)
+    max_content_score = Column(Float, default=0.0)
+
+
+class ChunkEmbedding(Base):
+    __tablename__ = "chunk_embeddings"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+
+    chunk_id = Column(String, unique=True, index=True, nullable=False)
+    doc_id = Column(String, index=True, nullable=False)
+
+    embedding_model = Column(String, nullable=False)
+    embedding_dim = Column(Integer, nullable=False)
+
+    # Временно JSON. Потом можно заменить на pgvector Vector(...)
+    embedding = Column(JSON, nullable=False)

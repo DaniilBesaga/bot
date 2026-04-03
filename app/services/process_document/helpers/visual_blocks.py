@@ -44,10 +44,11 @@ class VisualBlocks:
 
         return result
     @classmethod
-    def try_get_image_bbox(page: fitz.Page, xref) -> fitz.Rect | None:
-        return page.get_image_rects(xref)
+    def try_get_image_bbox(cls, page: fitz.Page, xref) -> fitz.Rect | None:
+        rects = page.get_image_rects(xref)
+        return rects[0] if rects else None
     @classmethod
-    def detect_visual_regions_from_render(page: fitz.Page) -> list[dict]:
+    def detect_visual_regions_from_render(cls, page: fitz.Page) -> list[dict]:
         pix = page.get_pixmap()
 
         if pix.n >= 4:
@@ -79,7 +80,7 @@ class VisualBlocks:
         return result
     
     @classmethod
-    def classify_visual_block(cls, block: dict, page, page_layout: dict) -> dict:
+    def classify_visual_block(cls, block: dict, page: fitz.Page, page_layout: dict) -> dict:
         bbox = block.get("bbox")
         page_width = page_layout.get("page_width", 595)
         page_height = page_layout.get("page_height", 842)
