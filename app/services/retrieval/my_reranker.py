@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 from transformers import AutoModel, AutoTokenizer
 
+# TODO: replace with multilingual e5-base
+
 class MyReranker(nn.Module):
     def __init__(self, model_name: str = "distilbert-base-uncased", 
                  dropout: float = 0.1):

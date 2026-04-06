@@ -29,7 +29,10 @@ class ProcessDocumentService:
                     bbox=b.get("bbox"),
                     raw_text=b.get("raw_text", ""),
                     normalized_text=b.get("normalized_text", ""),
-                    fingerprint_text=b.get("fingerprint_text", "")
+                    fingerprint_text=b.get("fingerprint_text", ""),
+                    content_score=b.get("content_score", 0.0),
+                    contact_score=b.get("contact_score", 0.0),
+                    boilerplate_score=b.get("boilerplate_score", 0.0)
                 )
             )
         
