@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
+from app.db.models import Chunk
+from app.services.embeddings.embedding_repository import EmbeddingRepository
 from app.services.embeddings.embedding_service import EmbeddingService
-from db.models import Chunk
-from embeddings.embedding_repository import EmbeddingRepository
 
 
 class EmbeddingBuilder:

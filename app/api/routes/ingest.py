@@ -58,7 +58,7 @@ def process_chunks(db=Depends(get_db)):
     return {"message": "Chunking completed"}
 
 
-@router.post("embeddings")
+@router.post("/embeddings")
 def process_embeddings(db=Depends(get_db)):
     service = EmbeddingService()
     chunks = db.execute("SELECT id FROM document_chunks").fetchall()

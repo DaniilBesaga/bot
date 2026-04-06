@@ -9,25 +9,24 @@ from app.training.datasets.reranker_dataset import RerankerDataset
 from app.services.retrieval.my_reranker import MyReranker
 
 class SmartCollate:
-    def __init__(self, tokenizer, max_length=384):
-        self.tokenizer = tokenizer
+    def __init__(self, max_length=384):
         self.max_length = max_length
 
-    def __call__(self, batch):
-        questions = [item["question"] for item in batch]
-        chunks = [item["chunk"] for item in batch]
-        labels = torch.tensor([item["label"] for item in batch], dtype=torch.float32)
+    # def __call__(self, batch):
+    #     questions = [item["question"] for item in batch]
+    #     chunks = [item["chunk"] for item in batch]
+    #     labels = torch.tensor([item["label"] for item in batch], dtype=torch.float32)
 
-        encoded = self.tokenizer(
-            questions,
-            chunks,
-            padding=True,
-            truncation=True,
-            max_length=self.max_length
-        )
-        encoded["labels"] = labels
+    #     encoded = self.tokenizer(
+    #         questions,
+    #         chunks,
+    #         padding=True,
+    #         truncation=True,
+    #         max_length=self.max_length
+    #     )
+    #     encoded["labels"] = labels
 
-        return encoded
+    #     return encoded
         
 
 # def collate_fn(batch, model: MyReranker):
@@ -67,10 +66,10 @@ def train():
 
     model = MyReranker(model_name="distilbert-base-uncased").to(device)
 
-    train_sql = "SELECT * FROM document_chunks LIMIT 100 WHERE test = 0"
+    train_sql = "SELECT * FROM reranker_examples LIMIT 100 WHERE label = 0 AND split = 'train'"
     train_dataset = RerankerDataset(train_sql, model.db)
 
-    val_sql = "SELECT * FROM document_chunks LIMIT 100 WHERE test = 1"
+    val_sql = "SELECT * FROM reranker_examples LIMIT 100 WHERE label = 1 AND split = 'train'"
     val_dataset = RerankerDataset(val_sql, model.db)
 
     my_collate = SmartCollate(model.tokenizer)

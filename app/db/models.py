@@ -19,22 +19,22 @@ class Document(Base):
     title: Mapped[str | None] = mapped_column(String(500), nullable=True)
     language: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-class DocumentChunk(Base):
-    __tablename__ = "document_chunks"
+# class DocumentChunk(Base):
+#     __tablename__ = "document_chunks"
 
-    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    document_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("documents.id", ondelete="CASCADE")
-    )
-    chunk_index: Mapped[int] = mapped_column(Integer)
-    text: Mapped[str] = mapped_column(Text)
-    token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    page_from: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    page_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    embedding: Mapped[list[float]] = mapped_column(Vector(384))
+#     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+#     document_id: Mapped[uuid.UUID] = mapped_column(
+#         ForeignKey("documents.id", ondelete="CASCADE")
+#     )
+#     chunk_index: Mapped[int] = mapped_column(Integer)
+#     text: Mapped[str] = mapped_column(Text)
+#     token_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+#     page_from: Mapped[int | None] = mapped_column(Integer, nullable=True)
+#     page_to: Mapped[int | None] = mapped_column(Integer, nullable=True)
+#     embedding: Mapped[list[float]] = mapped_column(Vector(384))
 
-    reranker_examples: Mapped[list["RerankerExample"]] = relationship(back_populates="chunk")
-    reranker_predictions: Mapped[list["RerankerPrediction"]] = relationship(back_populates="chunk")
+#     reranker_examples: Mapped[list["RerankerExample"]] = relationship(back_populates="chunk")
+#     reranker_predictions: Mapped[list["RerankerPrediction"]] = relationship(back_populates="chunk")
 
 
 class RerankerModel(Base):
@@ -133,7 +133,7 @@ class RerankerExample(Base):
         nullable=False,
     )
 
-    chunk: Mapped["DocumentChunk | None"] = relationship(back_populates="reranker_examples")
+    chunk: Mapped["Chunk | None"] = relationship(back_populates="reranker_examples")
 
 class RerankerPrediction(Base):
     __tablename__ = "reranker_predictions"
@@ -157,7 +157,7 @@ class RerankerPrediction(Base):
         nullable=False,
     )
 
-    chunk: Mapped["DocumentChunk | None"] = relationship(back_populates="reranker_predictions")
+    chunk: Mapped["Chunk | None"] = relationship(back_populates="reranker_predictions")
 
 class Block(Base):
     __tablename__ = "document_blocks"
@@ -185,7 +185,7 @@ class Block(Base):
 class Chunk(Base):
     __tablename__ = "document_chunks"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     chunk_id = Column(String, unique=True, index=True, nullable=False)
 
     doc_id = Column(String, index=True, nullable=False)
@@ -215,17 +215,25 @@ class Chunk(Base):
     avg_content_score = Column(Float, default=0.0)
     max_content_score = Column(Float, default=0.0)
 
+    reranker_examples: Mapped[list["RerankerExample"]] = relationship(back_populates="chunk")
+    reranker_predictions: Mapped[list["RerankerPrediction"]] = relationship(back_populates="chunk")
+
+    embedding: Mapped["ChunkEmbedding"] = relationship(back_populates="chunk", cascade="all, delete-orphan")
+
 
 class ChunkEmbedding(Base):
     __tablename__ = "chunk_embeddings"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
 
-    chunk_id = Column(String, unique=True, index=True, nullable=False)
+    chunk_id = Column(String, ForeignKey("document_chunks.chunk_id"), unique=True, index=True, nullable=False)
+
     doc_id = Column(String, index=True, nullable=False)
 
     embedding_model = Column(String, nullable=False)
     embedding_dim = Column(Integer, nullable=False)
 
     # Временно JSON. Потом можно заменить на pgvector Vector(...)
-    embedding = Column(JSON, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(384))
+
+    chunk: Mapped["Chunk"] = relationship(back_populates="embedding")

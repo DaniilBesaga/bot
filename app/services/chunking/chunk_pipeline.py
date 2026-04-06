@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
+from app.db.repositories import ChunkRepository
+from app.services.chunking.block_loader import BlockLoader
+from app.services.chunking.chunk_builder import ChunkBuilder
 from app.services.section.section_builder import SectionBuilder
-from chunking.block_loader import BlockLoader
-from chunking.chunk_builder import ChunkBuilder
-from chunking.chunk_repository import ChunkRepository
 
 
 class ChunkPipeline:

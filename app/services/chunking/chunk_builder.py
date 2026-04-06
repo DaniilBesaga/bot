@@ -1,5 +1,5 @@
+from app.db.models import Block
 from app.services.chunking.rules import avg, estimate_word_count, safe_join_text
-from db.models import Block
 
 
 class ChunkBuilder:

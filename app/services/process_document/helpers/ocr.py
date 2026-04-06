@@ -7,7 +7,7 @@ pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tessera
 class OCR:
 
     @classmethod
-    def extract_text_from_image_region(cls, page: fitz.Page, bbox: tuple[float, float, float, float], lang: str = 'rus+eng+rom') -> str:
+    def extract_text_from_image_region(cls, page: fitz.Page, bbox: tuple[float, float, float, float], lang: str = 'rus+eng+ron') -> str:
         """
         Вырезает область страницы по bbox и распознает на ней текст с помощью Tesseract.
         """

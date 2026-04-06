@@ -9,7 +9,7 @@ class DocumentStructurizer:
         sorted_blocks = sorted(all_blocks, key=lambda b: (b["bbox"][1], b["bbox"][0]))
         
         for i, block in enumerate(sorted_blocks):
-            if block["kind"] in ["image_region", "table_candidate"]:
+            if block["kind"] in ["image_block", "table_block"]:
                 # Ищем заголовок
                 heading = DocumentStructurizer.find_nearest_heading_above(i, sorted_blocks)
                 block["parent_heading"] = heading["text"] if heading else None
@@ -24,7 +24,7 @@ class DocumentStructurizer:
     def find_nearest_heading_above(current_idx: int, blocks: list[dict]) -> dict | None:
         """Идем вверх по списку от текущего блока в поиске ближайшего заголовка."""
         for i in range(current_idx - 1, -1, -1):
-            if blocks[i].get("is_heading"): # Флаг, который мы поставили ранее
+            if blocks[i].get("role") == "heading": # Флаг, который мы поставили ранее
                 return blocks[i]
         return None
 

@@ -67,8 +67,19 @@ class TextBlocks:
     def make_line_from_spans(cls, spans: list[dict]) -> dict:
         """Собирает строку из нескольких спанов и вычисляет её параметры."""
         spans = sorted(spans, key=lambda s: s["bbox"][0])
-        
-        line_text = "".join(s["text"] for s in spans)
+
+        parts = []
+        prev = None
+
+        for s in spans:
+            if prev is not None:
+                gap = s["bbox"][0] - prev["bbox"][2]
+                if gap > max(1.5, prev["font_size"] * 0.15):
+                    parts.append(" ")
+            parts.append(s["text"])
+            prev = s
+
+        line_text = "".join(parts).strip()
         # Для строки берем максимальный размер шрифта, который в ней встретился
         max_font_size = max(s["font_size"] for s in spans)
         
@@ -120,7 +131,7 @@ class TextBlocks:
 
         # 2. Проверка на разрыв по вертикали
         line_height = prev["bbox"][3] - prev["bbox"][1]
-        vertical_gap = curr["bbox"][1] - prev["bbox"][1]
+        vertical_gap = curr["bbox"][1] - prev["bbox"][3]
         if vertical_gap > (line_height + cls.LARGE_GAP_THRESHOLD):
             return False
 
@@ -193,3 +204,46 @@ class TextBlocks:
             block["role"] = "paragraph"
             
         return block
+    
+    @classmethod
+    def extract_native_text_blocks(cls, page: fitz.Page) -> list[dict]:
+        page_dict = page.get_text("dict")
+        result = []
+
+        for block in page_dict.get("blocks", []):
+            if block.get("type") != 0:
+                continue
+
+            lines = []
+            for line in block.get("lines", []):
+                line_spans = []
+                for span in line.get("spans", []):
+                    text = (span.get("text") or "").strip()
+                    if not text:
+                        continue
+                    line_spans.append({
+                        "text": text,
+                        "bbox": tuple(span["bbox"]),
+                        "font_size": round(span["size"], 1),
+                        "font_name": span["font"],
+                    })
+
+                if line_spans:
+                    lines.append(TextBlocks.make_line_from_spans(line_spans))
+
+            if not lines:
+                continue
+
+            result.append({
+                "kind": "native_text_block",
+                "bbox": (
+                    min(l["bbox"][0] for l in lines),
+                    min(l["bbox"][1] for l in lines),
+                    max(l["bbox"][2] for l in lines),
+                    max(l["bbox"][3] for l in lines),
+                ),
+                "lines": lines,
+                "text": " ".join(l["text"] for l in lines).strip()
+            })
+
+        return result

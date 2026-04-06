@@ -83,8 +83,6 @@ def compute_content_score(block: dict) -> float:
 
 def attach_scores(blocks: list[dict]) -> None:
     for block in blocks:
-        block["scores"] = {
-            "contact_score": compute_contact_score(block),
-            "boilerplate_score": compute_boilerplate_score(block),
-            "content_score": compute_content_score(block),
-        }
+        block["contact_score"] = compute_contact_score(block)
+        block["boilerplate_score"] = compute_boilerplate_score(block)
+        block["content_score"] = compute_content_score(block)

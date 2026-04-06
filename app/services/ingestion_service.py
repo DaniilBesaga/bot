@@ -3,7 +3,7 @@ from app.services.extraction.factory import ExtractorFactory
 from app.services.chunking.cleaners import clean_text
 from app.services.chunking.chunking import ParagraphChunker
 from app.services.embeddings.embedding_service import EmbeddingService
-from app.db.repositories import DocumentRepository, ChunkRepository
+from app.db.repositories import ChunkRepository, ChunkRepository
 from app.services.process_document import process_document
 
 
@@ -12,7 +12,7 @@ class IngestionService:
         self.db = db
         self.chunker = ParagraphChunker()
         self.embedding_service = EmbeddingService()
-        self.document_repo = DocumentRepository(db)
+        self.document_repo = ChunkRepository(db)
         self.chunk_repo = ChunkRepository(db)
         self.process_document_service = process_document.ProcessDocumentService(db)
 

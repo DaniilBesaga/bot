@@ -1,3 +1,5 @@
+from transformers import AutoTokenizer
+
 from app.core.config import settings
 from app.db.repositories import ChunkRepository
 from app.services.embeddings.embedding_service import EmbeddingService
@@ -5,6 +7,7 @@ from app.services.retrieval.vector_search import VectorSearchService
 from app.services.retrieval.prompt_builder import build_prompt, build_prompt_question
 from app.services.llm.llm_service import LlmService
 from app.services.retrieval.rerank_inference import MyRerankerService
+from app.training.train_reranker import SmartCollate
 
 
 class ChatService:
@@ -12,16 +15,18 @@ class ChatService:
         self.llm_service = LlmService()
         self.embedding_service = EmbeddingService()
         self.vector_search = VectorSearchService(db)
-        # self.reranker = MyRerankerService(model_dir="models/reranker")
+        self.reranker = MyRerankerService(model_dir="models/reranker")
         self.chunk_repo = ChunkRepository(db)
         self.db = db
+        #self.smart_collate = SmartCollate(tokenizer=AutoTokenizer.from_pretrained("distilbert-base-uncased"))
+        self.smart_collate = SmartCollate()
 
     def ask(self, question: str) -> dict:
         question_embedding = self.embedding_service.embed_text(question)
         
-        best_chunks = self.vector_search.search(question_embedding, limit=30)
+        candidates = self.vector_search.search(question_embedding, limit=30)
 
-        # best_chunks = self.reranker.rerank(question, candidates, top_n=settings.TOP_K)
+        best_chunks = self.reranker.rerank(question, candidates, top_n=settings.TOP_K)
 
         prompt = build_prompt(question, best_chunks)
 
@@ -63,4 +68,7 @@ class ChatService:
             raise
 
         return { "questions": responses }
+    
+    def train_model(self):
+        self.smart_collate.train()
 

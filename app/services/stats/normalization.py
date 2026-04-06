@@ -1,8 +1,6 @@
 import re
 import unicodedata
 
-from app.dataclasses.block import Block
-
 EMAIL_RE = re.compile(r'[\w\.-]+@[\w\.-]+\.\w+')
 URL_RE = re.compile(r'(https?://\S+|www\.\S+)')
 PHONE_RE = re.compile(r'(\+?\d[\d\s\-\.\(\)]{6,}\d)')

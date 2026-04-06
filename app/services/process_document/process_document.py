@@ -1,5 +1,5 @@
 
-from app.dataclasses.block import Block
+from app.db.models import Block
 from app.services.process_document.helpers.pdf_loader import PdfLoader
 from app.services.process_document.pipeline import Pipeline
 from app.services.stats.pipeline import build_block_statistics_and_scores
@@ -73,6 +73,12 @@ class ProcessDocumentService:
         
         # 2. Capture the returned enriched list of blocks
         enriched_blocks = build_block_statistics_and_scores(docs_list)
+
+        flat_blocks = []
+        for doc in enriched_blocks:
+            flat_blocks.extend(doc.get("blocks", []))
+
+        self._insert_blocks_to_db(flat_blocks)
 
         # 3. Insert into DB
         self._insert_blocks_to_db(enriched_blocks)
