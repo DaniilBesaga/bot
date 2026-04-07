@@ -25,7 +25,7 @@ def build_prompt_question(chunks: list[dict]) -> str:
 
     for chunk in chunks:
         source = chunk.get("file_name", "Unknown Source")
-        text_value = chunk.get("text", "")
+        text_value = chunk.get("chunk_text", "")
         context_blocks.append(f"Источник: {source}\n{text_value}\n\n")
 
     context = "\n\n --- \n\n".join(context_blocks)

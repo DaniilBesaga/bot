@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from app.api.routes.chat import router as chat_router
 from app.api.routes.ingest import router as ingest_router
+from app.api.routes.model import router as model_router
 import os
 
 # Your specific path to the site-packages
@@ -16,3 +17,4 @@ app = FastAPI(title="Custom RAG Bot")
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(ingest_router, prefix="/api")
+app.include_router(model_router, prefix="/api")

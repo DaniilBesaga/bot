@@ -56,10 +56,10 @@ def process_pdf(file_path: str, doc_id: str, db=Depends(get_db)):
 #     return {"message": "Chunking completed"}
 
 
-@router.post("/embeddings")
-def process_embeddings(db=Depends(get_db)):
-    service = EmbeddingService()
-    chunks = db.execute("SELECT id FROM document_chunks").fetchall()
-    docs = EmbeddingBuilder.generate_embeddings_for_all_chunks(session=db, embedding_service=service, model_name="intfloat/multilingual-e5-base", batch_size=32)
+# @router.post("/embeddings")
+# def process_embeddings(db=Depends(get_db)):
+#     service = EmbeddingService()
+#     chunks = db.execute("SELECT id FROM document_chunks").fetchall()
+#     docs = EmbeddingBuilder.generate_embeddings_for_all_chunks(session=db, embedding_service=service, model_name="intfloat/multilingual-e5-base", batch_size=32)
     
-    return {"message": "Embeddings completed"}
+#     return {"message": "Embeddings completed"}

@@ -1,75 +1,222 @@
-from sqlalchemy import text, select
-from sqlalchemy.orm import Session
+from __future__ import annotations
 
-from app.db.models import RerankerExample
+import uuid
+from typing import Any
+
+from sqlalchemy import select, text
+from sqlalchemy.orm import Session, joinedload
+
+from app.db.models import (
+    ChunkEmbedding,
+    DocumentChunk,
+    RerankerExample,
+)
+
 
 class ChunkRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def search_similar(self, query_embedding: list[float], limit: int = 5):
+    def search_similar(self, query_embedding: list[float], limit: int = 5) -> list[dict[str, Any]]:
         """
-        Поиск с использованием pgvector. 
-        Обратите внимание: теперь мы джойним таблицу chunk_embeddings.
+        Поиск похожих чанков через pgvector.
+
+        Возвращает данные из текущей схемы:
+        - document_chunks.id
+        - document_chunks.document_id
+        - document_chunks.chunk_index
+        - document_chunks.chunk_type
+        - document_chunks.chunk_text
+        - document_chunks.page_from
+        - document_chunks.page_to
+        - similarity
         """
-        # Преобразуем список в строку формата pgvector '[0.1, 0.2, ...]'
         embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
-        
+
         sql = text("""
-            SELECT 
+            SELECT
                 c.id,
-                c.chunk_id,
-                c.doc_id,
-                c.raw_text,
-                c.start_page,
-                c.end_page,
+                c.document_id,
+                c.section_id,
+                c.chunk_index,
+                c.chunk_type,
+                c.chunk_text,
+                c.chunk_markdown,
+                c.page_from,
+                c.page_to,
+                c.token_count,
+                c.heading_path,
+                c.metadata_json,
                 1 - (ce.embedding <=> CAST(:embedding AS vector)) AS similarity
             FROM document_chunks c
-            JOIN chunk_embeddings ce ON c.chunk_id = ce.chunk_id
+            JOIN chunk_embeddings ce
+                ON c.id = ce.chunk_id
             ORDER BY ce.embedding <=> CAST(:embedding AS vector)
             LIMIT :limit
         """)
 
         result = self.db.execute(
             sql,
-            {"embedding": embedding_str, "limit": limit}
+            {
+                "embedding": embedding_str,
+                "limit": limit,
+            },
         )
 
         return [dict(row._mapping) for row in result]
 
-    def get_chunks(self):
-        # Используем новую таблицу document_chunks
-        sql = text("SELECT * FROM document_chunks")
-        result = self.db.execute(sql)
+    def get_chunks(self) -> list[DocumentChunk]:
+        """
+        Возвращает все чанки как ORM-объекты.
+        """
+        stmt = (
+            select(DocumentChunk)
+            .options(joinedload(DocumentChunk.embedding))
+            .order_by(DocumentChunk.created_at.desc())
+        )
+        return list(self.db.scalars(stmt).all())
+
+    def get_chunks_as_dicts(self) -> list[dict[str, Any]]:
+        """
+        Если нужны именно словари, а не ORM-объекты.
+        """
+        stmt = select(
+            DocumentChunk.id,
+            DocumentChunk.document_id,
+            DocumentChunk.section_id,
+            DocumentChunk.chunk_index,
+            DocumentChunk.chunk_type,
+            DocumentChunk.chunk_text,
+            DocumentChunk.chunk_markdown,
+            DocumentChunk.page_from,
+            DocumentChunk.page_to,
+            DocumentChunk.token_count,
+            DocumentChunk.heading_path,
+            DocumentChunk.metadata_json,
+            DocumentChunk.created_at,
+        ).order_by(DocumentChunk.created_at.desc())
+
+        result = self.db.execute(stmt)
         return [dict(row._mapping) for row in result]
 
-    def get_questions(self):
-        sql = text("SELECT * FROM reranker_examples")
-        result = self.db.execute(sql)
+    def get_questions(self) -> list[RerankerExample]:
+        """
+        Возвращает все примеры для реранкера как ORM-объекты.
+        """
+        stmt = (
+            select(RerankerExample)
+            .options(joinedload(RerankerExample.chunk))
+            .order_by(RerankerExample.created_at.desc())
+        )
+        return list(self.db.scalars(stmt).all())
+
+    def get_questions_as_dicts(self) -> list[dict[str, Any]]:
+        """
+        Возвращает все примеры реранкера в виде словарей.
+        """
+        stmt = select(
+            RerankerExample.id,
+            RerankerExample.question,
+            RerankerExample.chunk_id,
+            RerankerExample.chunk_text_snapshot,
+            RerankerExample.label,
+            RerankerExample.split,
+            RerankerExample.source,
+            RerankerExample.created_at,
+        ).order_by(RerankerExample.created_at.desc())
+
+        result = self.db.execute(stmt)
         return [dict(row._mapping) for row in result]
 
-    def create_questions(
+    def create_question(
         self,
         question: str,
         chunk_text_snapshot: str,
-        chunk_id: any, # Тип зависит от того, используете вы Integer PK или String chunk_id
+        chunk_id: uuid.UUID | None,
         label: bool,
         split: str,
-        source: str | None
-    ):
+        source: str | None = None,
+    ) -> RerankerExample:
+        """
+        Создает один пример для обучения реранкера.
+        """
         reranker_ex = RerankerExample(
             question=question,
             chunk_id=chunk_id,
             chunk_text_snapshot=chunk_text_snapshot,
             label=label,
             split=split,
-            source=source
+            source=source,
         )
+
         try:
             self.db.add(reranker_ex)
             self.db.flush()
             return reranker_ex
-        except Exception as e:
+        except Exception:
             self.db.rollback()
-            print(f"Failed to add reranker example to db: {e}")
             raise
+
+    def create_questions_bulk(
+        self,
+        examples: list[dict[str, Any]],
+    ) -> list[RerankerExample]:
+        """
+        Массовое создание примеров.
+
+        examples format:
+        [
+            {
+                "question": "...",
+                "chunk_text_snapshot": "...",
+                "chunk_id": uuid.UUID(...) or None,
+                "label": True,
+                "split": "train",
+                "source": "synthetic",
+            }
+        ]
+        """
+        entities: list[RerankerExample] = []
+
+        try:
+            for item in examples:
+                entity = RerankerExample(
+                    question=item["question"],
+                    chunk_text_snapshot=item["chunk_text_snapshot"],
+                    chunk_id=item.get("chunk_id"),
+                    label=item["label"],
+                    split=item["split"],
+                    source=item.get("source"),
+                )
+                entities.append(entity)
+
+            self.db.add_all(entities)
+            self.db.flush()
+            return entities
+        except Exception:
+            self.db.rollback()
+            raise
+
+    def get_chunk_by_id(self, chunk_id: uuid.UUID) -> DocumentChunk | None:
+        stmt = (
+            select(DocumentChunk)
+            .options(joinedload(DocumentChunk.embedding))
+            .where(DocumentChunk.id == chunk_id)
+        )
+        return self.db.scalar(stmt)
+
+    def get_chunks_without_embeddings(self, limit: int | None = None) -> list[DocumentChunk]:
+        """
+        Получить чанки, для которых еще не сохранен embedding.
+        """
+        stmt = (
+            select(DocumentChunk)
+            .outerjoin(ChunkEmbedding, DocumentChunk.id == ChunkEmbedding.chunk_id)
+            .where(ChunkEmbedding.chunk_id.is_(None))
+            .order_by(DocumentChunk.created_at.asc())
+        )
+
+        if limit is not None:
+            stmt = stmt.limit(limit)
+
+        return list(self.db.scalars(stmt).all())

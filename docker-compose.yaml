@@ -13,23 +13,23 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
 
-  app:
-    build: .
-    container_name: pdf_worker
-    ports:
-      - "8080:80"
-    depends_on:
-      - db
-    environment:
-      # Важно: используем имя сервиса 'db' и внутренний порт 5432
-      - DB_URL=postgresql://postgres:root@db:5432/bot
-    volumes:
-      - .:/app
-      # Кэшируем модели нейросетей, чтобы не качать их при каждом рестарте
-      - docling_models:/root/.cache/docling
-      - hf_models:/root/.cache/huggingface
+  # app:
+  #   build: .
+  #   container_name: pdf_worker
+  #   ports:
+  #     - "8080:80"
+  #   depends_on:
+  #     - db
+  #   environment:
+  #     # Важно: используем имя сервиса 'db' и внутренний порт 5432
+  #     - DB_URL=postgresql://postgres:root@db:5432/bot
+  #   volumes:
+  #     - .:/app
+  #     # Кэшируем модели нейросетей, чтобы не качать их при каждом рестарте
+  #     - docling_models:/root/.cache/docling
+  #     - hf_models:/root/.cache/huggingface
 
 volumes:
   pgdata:
-  docling_models:
-  hf_models:
+  # docling_models:
+  # hf_models:
