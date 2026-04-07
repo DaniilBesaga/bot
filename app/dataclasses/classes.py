@@ -1,23 +1,23 @@
 from dataclasses import dataclass, field
 from typing import Any
 
-@dataclass
-class Primitive:
-    kind: str
-    bbox: tuple[float, float, float, float]
-    data: dict[str, Any] = field(default_factory=dict)
 
 @dataclass
-class LayoutRegion:
-    kind: str
-    bbox: tuple[float, float, float, float]
-    members: list[Primitive] = field(default_factory=list)
-    meta: dict[str, Any] = field(default_factory=dict)
+class NormalizedBlock:
+    block_type: str
+    text: str | None
+    markdown: str | None
+    page_number: int | None
+    order_index: int
+    heading_level: int | None = None
+    heading_path: list[str] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+
 
 @dataclass
-class ContentBlock:
-    kind: str
-    role: str
-    bbox: tuple[float, float, float, float]
-    text: str = ""
-    meta: dict[str, Any] = field(default_factory=dict)
+class NormalizedDocument:
+    file_name: str
+    markdown_full: str | None
+    text_full: str | None
+    blocks: list[NormalizedBlock]
+    raw_items: dict | None = None

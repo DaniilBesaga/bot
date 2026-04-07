@@ -1,8 +1,6 @@
 import os
 from fastapi import APIRouter, Depends
 from app.db.session import SessionLocal
-from app.services.chunking.chunk_pipeline import ChunkPipeline
-from app.services.embeddings.embedding_builder import EmbeddingBuilder
 from app.services.embeddings.embedding_service import EmbeddingService
 from app.services.ingestion_service import IngestionService
 from app.services.process_document.process_document import ProcessDocumentService
@@ -45,17 +43,17 @@ def process_pdf(file_path: str, doc_id: str, db=Depends(get_db)):
     service = ProcessDocumentService(db)
     return service.process_document(file_path, doc_id)
 
-@router.post("/chunks")
-def process_chunks(db=Depends(get_db)):
-    service = ChunkPipeline(db)
-    docs = db.execute("SELECT id FROM document_blocks").fetchall()
+# @router.post("/chunks")
+# def process_chunks(db=Depends(get_db)):
+#     service = ChunkPipeline(db)
+#     docs = db.execute("SELECT id FROM document_blocks").fetchall()
 
-    chunks = []
+#     chunks = []
 
-    for doc in docs:
-        service.build_and_save_chunks_for_document(session=db, doc_id=doc.id)
+#     for doc in docs:
+#         service.build_and_save_chunks_for_document(session=db, doc_id=doc.id)
 
-    return {"message": "Chunking completed"}
+#     return {"message": "Chunking completed"}
 
 
 @router.post("/embeddings")

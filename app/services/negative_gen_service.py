@@ -1,5 +1,4 @@
 import os
-from app.services.chunkung.cleaners import clean_text
 from app.services.embeddings.embedding_service import EmbeddingService
 from app.db.repositories import DocumentRepository, ChunkRepository
 from app.services.retrieval.vector_search import VectorSearchService

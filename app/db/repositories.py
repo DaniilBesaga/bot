@@ -1,48 +1,11 @@
 from sqlalchemy import text, select
 from sqlalchemy.orm import Session
-from app.db.models import Chunk, ChunkEmbedding, RerankerExample, Document
+
+from app.db.models import RerankerExample
 
 class ChunkRepository:
     def __init__(self, db: Session):
         self.db = db
-
-    def create_chunk(
-        self,
-        chunk_id: str,
-        doc_id: str,
-        raw_text: str,
-        clean_text: str | None = None,
-        start_page: int | None = None,
-        end_page: int | None = None,
-        embedding_vector: list[float] | None = None,
-        embedding_model: str = "default-model",
-    ) -> Chunk:
-        # 1. Создаем основной объект чанка
-        chunk = Chunk(
-            chunk_id=chunk_id,
-            doc_id=doc_id,
-            raw_text=raw_text,
-            clean_text=clean_text,
-            start_page=start_page,
-            end_page=end_page,
-            # Добавьте остальные поля (scores, block_ids), если они приходят из парсера
-        )
-        
-        self.db.add(chunk)
-        self.db.flush()  # Получаем доступ к chunk.id, если нужно
-
-        # 2. Если передан вектор, создаем запись в таблицу эмбеддингов
-        if embedding_vector:
-            embedding_obj = ChunkEmbedding(
-                chunk_id=chunk_id,  # Используем строковый chunk_id как в модели
-                doc_id=doc_id,
-                embedding_model=embedding_model,
-                embedding_dim=len(embedding_vector),
-                embedding=embedding_vector
-            )
-            self.db.add(embedding_obj)
-        
-        return chunk
 
     def search_similar(self, query_embedding: list[float], limit: int = 5):
         """
