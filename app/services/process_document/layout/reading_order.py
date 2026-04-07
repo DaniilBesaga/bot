@@ -26,10 +26,11 @@ class ReadingOrderResolver:
             return [(0, page_width)]
 
         centers = sorted(
-            ((b["bbox"][0] + b["bbox"][2]) / 2, b) for b in text_blocks
+            text_blocks, 
+            key=lambda b: (b["bbox"][0] + b["bbox"][2]) / 2
         )
 
-        xs = [c for c, _ in centers]
+        xs = [(b["bbox"][0] + b["bbox"][2]) / 2 for b in centers]
         gaps = []
 
         for i in range(1, len(xs)):

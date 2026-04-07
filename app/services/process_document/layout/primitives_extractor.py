@@ -20,7 +20,8 @@ class PrimitivesExtractor:
 
         image_regions = VisualBlocks.extract_image_regions(page)
         table_candidates = TableBlocks.detect_table_candidates(page, image_regions)
-        visual_components = VisualBlocks.extract_visual_components(page)
+        # visual_components = VisualBlocks.extract_image_regions(page)
+        
 
         return {
             "page_width": page_width,
@@ -32,5 +33,5 @@ class PrimitivesExtractor:
             "drawings": drawings,
             "image_regions": image_regions,
             "table_candidates": table_candidates,
-            "visual_components": visual_components,
+            # "visual_components": visual_components,
         }

@@ -1,62 +1,31 @@
 import fitz
-import numpy as np
 import cv2
+import numpy as np
 
 from app.services.process_document.helpers.geometry import Geometry
 
 
 class VisualBlocks:
-    def __init__(self, blocks: list[dict], tolerance: float = 5.0):
-        self.blocks = blocks
-        self.tolerance = tolerance
-
     @classmethod
     def extract_image_regions(cls, page: fitz.Page) -> list[dict]:
-        pdf_images = VisualBlocks.try_extract_pdf_images(page)
-        visual_regions = VisualBlocks.detect_visual_regions_from_render(page)
+        pdf_images = cls.try_extract_pdf_images(page)
+        visual_regions = cls.detect_visual_regions_from_render(page)
 
         all_regions = pdf_images + visual_regions
-        return VisualBlocks.merge_regions(all_regions)
-    
-    @classmethod
-    def extract_visual_components(cls, page: fitz.Page) -> list[dict]:
-        pix = page.get_pixmap()
-        img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
-
-        if pix.n >= 4:
-            gray = cv2.cvtColor(img, cv2.COLOR_RGBA2GRAY)
-        else:
-            gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-
-        _, thresh = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
-
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (25, 25))
-        merged = cv2.dilate(thresh, kernel, iterations=2)
-
-        contours, _ = cv2.findContours(merged, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        result = []
-        for cnt in contours:
-            x, y, w, h = cv2.boundingRect(cnt)
-            if w < 20 or h < 20:
-                continue
-
-            result.append({
-                "kind": "visual_component",
-                "bbox": (float(x), float(y), float(x + w), float(y + h))
-            })
-
-        return result
+        return cls.merge_regions(all_regions)
 
     @classmethod
     def try_extract_pdf_images(cls, page: fitz.Page) -> list[dict]:
-        result = []
+        result: list[dict] = []
 
-        image_objects = page.get_images(full=True)
+        try:
+            image_objects = page.get_images(full=True)
+        except Exception:
+            return result
 
         for image_info in image_objects:
             xref = image_info[0]
-            bbox = VisualBlocks.try_get_image_bbox(page, xref)
+            bbox = cls.try_get_image_bbox(page, xref)
 
             if bbox is None:
                 continue
@@ -68,243 +37,128 @@ class VisualBlocks:
             })
 
         return result
-
+    
     @classmethod
-    def try_get_image_bbox(cls, page: fitz.Page, xref) -> fitz.Rect | None:
+    def try_get_image_bbox(cls, page: fitz.Page, xref: int) -> fitz.Rect | None:
         rects = page.get_image_rects(xref)
         return rects[0] if rects else None
 
     @classmethod
     def detect_visual_regions_from_render(cls, page: fitz.Page) -> list[dict]:
         pix = page.get_pixmap()
+        img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
 
         if pix.n >= 4:
-            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, 4)
             gray = cv2.cvtColor(img, cv2.COLOR_RGBA2GRAY)
         else:
-            img = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, 3)
             gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
-        _, thresh = cv2.threshold(gray, 240, 255, cv2.THRESH_BINARY_INV)
+        _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
 
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (15, 15))
-        dilated = cv2.dilate(thresh, kernel, iterations=2)
+        line_length = max(20, pix.w // 40)
+        horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (line_length, 1))
+        vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1, line_length))
 
-        contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        horizontal = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel)
+        vertical = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel)
 
-        result = []
+        mask = cv2.bitwise_or(horizontal, vertical)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        scale_x = page.rect.width / pix.w
+        scale_y = page.rect.height / pix.h
+
+        candidates = []
 
         for cnt in contours:
             x, y, w, h = cv2.boundingRect(cnt)
 
-            if w > 50 and h > 50:
-                result.append({
-                    "kind": "image_region",
-                    "bbox": (float(x), float(y), float(x + w), float(y + h)),
-                    "source_kind": "render_detected"
-                })
+            if w < 120 or h < 60:
+                continue
 
-        return result
+            roi_h = horizontal[y:y+h, x:x+w]
+            roi_v = vertical[y:y+h, x:x+w]
+            roi_inter = cv2.bitwise_and(roi_h, roi_v)
+
+            # количество контуров горизонтальных линий
+            h_cnts, _ = cv2.findContours(roi_h, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            v_cnts, _ = cv2.findContours(roi_v, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            i_cnts, _ = cv2.findContours(roi_inter, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+            h_lines = sum(1 for c in h_cnts if cv2.boundingRect(c)[2] > w * 0.3)
+            v_lines = sum(1 for c in v_cnts if cv2.boundingRect(c)[3] > h * 0.3)
+            intersections = len(i_cnts)
+
+            # жёстче фильтруем
+            if h_lines < 2:
+                continue
+            if v_lines < 2:
+                continue
+            if intersections < 4:
+                continue
+
+            pdf_bbox = (
+                float(x * scale_x),
+                float(y * scale_y),
+                float((x + w) * scale_x),
+                float((y + h) * scale_y),
+            )
+
+            candidates.append({
+                "kind": "table_candidate",
+                "bbox": pdf_bbox,
+                "source_kind": "cv2_visual"
+            })
+
+        return candidates
 
     @classmethod
     def merge_regions(
         cls,
         regions: list[dict],
-        intersection_threshold: float = 0.85,
-        near_gap: float = 12.0
-    ) -> list[dict]:
-        """
-        Объединяет:
-        1. почти одинаковые регионы;
-        2. вложенные регионы;
-        3. очень близкие регионы, если они похожи на части одной картинки.
-        """
-        if not regions:
-            return []
-
-        # Нормализуем bbox в tuple
-        normalized = []
-        for r in regions:
-            normalized.append({
-                **r,
-                "bbox": tuple(r["bbox"])
-            })
-
-        # Сначала убираем почти полные дубли / вложенности
-        normalized = cls._deduplicate_nested_regions(
-            normalized,
-            intersection_threshold=intersection_threshold
-        )
-
-        # Потом пробуем склеить близкие куски
-        normalized = cls._merge_close_regions(
-            normalized,
-            near_gap=near_gap
-        )
-
-        # Финальная сортировка
-        normalized.sort(key=lambda r: (r["bbox"][1], r["bbox"][0]))
-        return normalized
-
-    @classmethod
-    def _deduplicate_nested_regions(
-        cls,
-        regions: list[dict],
         intersection_threshold: float = 0.85
     ) -> list[dict]:
-        """
-        Если один регион почти полностью покрывается другим,
-        оставляем более надежный.
-        """
         if not regions:
             return []
 
         priority = {
-            "pdf_image": 3,
-            "render_detected": 2,
-            "unknown": 1
+            "pdf_image": 2,
+            "render_detected": 1
         }
 
-        # Сначала более надежные, потом большие
         regions = sorted(
             regions,
             key=lambda r: (
-                priority.get(r.get("source_kind", "unknown"), 0),
+                priority.get(r.get("source_kind", ""), 0),
                 Geometry.bbox_area(r["bbox"])
             ),
             reverse=True
         )
 
-        result = []
+        result: list[dict] = []
 
         for candidate in regions:
-            covered = False
+            duplicate = False
 
             for existing in result:
-                ratio_candidate_in_existing = Geometry.calculate_intersection_ratio(
-                    candidate["bbox"],
-                    existing["bbox"]
-                )
-                ratio_existing_in_candidate = Geometry.calculate_intersection_ratio(
-                    existing["bbox"],
-                    candidate["bbox"]
-                )
+                r1 = Geometry.calculate_intersection_ratio(candidate["bbox"], existing["bbox"])
+                r2 = Geometry.calculate_intersection_ratio(existing["bbox"], candidate["bbox"])
 
-                # почти одинаковые или вложенные
-                if (
-                    ratio_candidate_in_existing >= intersection_threshold
-                    or ratio_existing_in_candidate >= intersection_threshold
-                ):
-                    covered = True
+                if r1 >= intersection_threshold or r2 >= intersection_threshold:
+                    duplicate = True
                     break
 
-            if not covered:
+            if not duplicate:
                 result.append(candidate)
 
+        result.sort(key=lambda r: (r["bbox"][1], r["bbox"][0]))
         return result
 
     @classmethod
-    def _merge_close_regions(
-        cls,
-        regions: list[dict],
-        near_gap: float = 12.0
-    ) -> list[dict]:
-        """
-        Склеивает регионы, если:
-        - они почти соприкасаются
-        - и сильно пересекаются по одной оси
-        """
-        if not regions:
-            return []
-
-        changed = True
-        current = regions[:]
-
-        while changed:
-            changed = False
-            new_regions = []
-            used = [False] * len(current)
-
-            for i, a in enumerate(current):
-                if used[i]:
-                    continue
-
-                merged_region = a
-
-                for j in range(i + 1, len(current)):
-                    if used[j]:
-                        continue
-
-                    b = current[j]
-
-                    if cls._should_merge_two_regions(merged_region, b, near_gap=near_gap):
-                        merged_region = {
-                            "kind": "image_region",
-                            "bbox": Geometry.union_bbox(merged_region["bbox"], b["bbox"]),
-                            "source_kind": cls._merge_source_kind(
-                                merged_region.get("source_kind"),
-                                b.get("source_kind")
-                            )
-                        }
-                        used[j] = True
-                        changed = True
-
-                used[i] = True
-                new_regions.append(merged_region)
-
-            current = new_regions
-
-        return current
-
-    @classmethod
-    def _should_merge_two_regions(
-        cls,
-        a: dict,
-        b: dict,
-        near_gap: float = 12.0
-    ) -> bool:
-        bbox_a = a["bbox"]
-        bbox_b = b["bbox"]
-
-        # Если уже сильно пересекаются — склеиваем
-        inter_a = Geometry.calculate_intersection_ratio(bbox_a, bbox_b)
-        inter_b = Geometry.calculate_intersection_ratio(bbox_b, bbox_a)
-        if inter_a > 0.3 or inter_b > 0.3:
-            return True
-
-        h_gap = Geometry.horizontal_gap(bbox_a, bbox_b)
-        v_gap = Geometry.vertical_gap(bbox_a, bbox_b)
-
-        h_overlap = Geometry.horizontal_overlap_ratio(bbox_a, bbox_b)
-        v_overlap = Geometry.vertical_overlap_ratio(bbox_a, bbox_b)
-
-        # рядом по горизонтали, но по вертикали стоят на одной линии
-        if h_gap <= near_gap and v_overlap > 0.6:
-            return True
-
-        # рядом по вертикали, но по горизонтали хорошо выровнены
-        if v_gap <= near_gap and h_overlap > 0.6:
-            return True
-
-        return False
-
-    @classmethod
-    def _merge_source_kind(cls, a: str | None, b: str | None) -> str:
-        """
-        Если хотя бы один источник pdf_image — считаем merged регион более надежным.
-        """
-        kinds = {a, b}
-        if "pdf_image" in kinds:
-            return "pdf_image"
-        if "render_detected" in kinds:
-            return "render_detected"
-        return "unknown"
-
-    @classmethod
     def classify_visual_block(cls, block: dict, page: fitz.Page, page_layout: dict) -> dict:
-        bbox = block.get("bbox")
-        page_width = page_layout.get("page_width", 595)
-        page_height = page_layout.get("page_height", 842)
+        bbox = block["bbox"]
+        page_width = page_layout.get("page_width", page.rect.width)
+        page_height = page_layout.get("page_height", page.rect.height)
 
         w = bbox[2] - bbox[0]
         h = bbox[3] - bbox[1]

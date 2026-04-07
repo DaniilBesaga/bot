@@ -30,13 +30,13 @@ class LayoutRegionBuilder:
                 "members": [b],
             })
 
-        for b in primitives["visual_components"]:
-            candidates.append({
-                "kind": "region_candidate",
-                "bbox": tuple(b["bbox"]),
-                "source_kind": "visual_component",
-                "members": [b],
-            })
+        # for b in primitives["visual_components"]:
+        #     candidates.append({
+        #         "kind": "region_candidate",
+        #         "bbox": tuple(b["bbox"]),
+        #         "source_kind": "visual_component",
+        #         "members": [b],
+        #     })
 
         candidates = cls.merge_nested_candidates(candidates)
         candidates = cls.merge_close_candidates(candidates)

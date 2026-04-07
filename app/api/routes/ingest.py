@@ -17,7 +17,7 @@ def get_db():
         db.close()
 
 @router.post("/ingest")
-def ingest(db=Depends(get_db)):
+async def ingest(db=Depends(get_db)):
     service = IngestionService(db)
     results = []
 
@@ -34,7 +34,7 @@ def ingest(db=Depends(get_db)):
         for file_name in os.listdir(folder):
             file_path = os.path.join(folder, file_name)
             if os.path.isfile(file_path):
-                result = service.ingest_file(file_path)
+                result = await service.ingest_file(file_path)
                 if result:
                     results.append(result)
 

@@ -16,7 +16,7 @@ class IngestionService:
         self.chunk_repo = ChunkRepository(db)
         self.process_document_service = process_document.ProcessDocumentService(db)
 
-    def ingest_file(self, file_path: str):
+    async def ingest_file(self, file_path: str):
         # extractor = ExtractorFactory.get_extractor(file_path)
         # extracted = extractor.extract(file_path)
 
@@ -54,5 +54,8 @@ class IngestionService:
         #     "file_name": document.file_name,
         #     "chunks": len(chunks),
         # }
-        self.process_document_service.process_document(file_path=file_path)
-        return {"status": "ok"}
+        result = await self.process_document_service.process_document(file_path=file_path)
+        return {
+            "file_path": file_path,
+            "result": result
+        }
