@@ -16,4 +16,4 @@ router = APIRouter()
 @router.post("/negatives")
 def generate_negatives(db = Depends(get_db)):
     service = NegativeGenerationService(db)
-    return service.generate_negatives()
+    return service.generate_negative_chunks()

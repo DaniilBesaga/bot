@@ -1,10 +1,16 @@
+import random
+from typing import Any
+import uuid
+
 from transformers import AutoTokenizer
 
 from app.core.config import settings
 from app.db.repositories import ChunkRepository
+from app.services.contact.is_contact_query import is_contact_query
 from app.services.embeddings.embedding_service import EmbeddingService
+from app.services.retrieval.json_parser import is_chunk_good_for_qa
+from app.services.retrieval.prompt_builder import build_prompt, build_prompt_question, build_prompt_validate
 from app.services.retrieval.vector_search import VectorSearchService
-from app.services.retrieval.prompt_builder import build_prompt, build_prompt_question
 from app.services.llm.llm_service import LlmService
 from app.services.retrieval.rerank_inference import MyRerankerService
 from app.training.train_reranker import SmartCollate
@@ -15,7 +21,7 @@ class ChatService:
         self.llm_service = LlmService()
         self.embedding_service = EmbeddingService()
         self.vector_search = VectorSearchService(db)
-        self.reranker = MyRerankerService(model_dir="models/reranker")
+        # self.reranker = MyRerankerService(model_dir="models/reranker")
         self.chunk_repo = ChunkRepository(db)
         self.db = db
         #self.smart_collate = SmartCollate(tokenizer=AutoTokenizer.from_pretrained("distilbert-base-uncased"))
@@ -23,8 +29,13 @@ class ChatService:
 
     def ask(self, question: str) -> dict:
         question_embedding = self.embedding_service.embed_query(question)
+
+        candidates
         
-        candidates = self.vector_search.search(question_embedding, limit=30)
+        if is_contact_query(question):
+            candidates = self.vector_search.search_contact_chunks(question_embedding, limit=3)
+        else:
+            candidates = self.vector_search.search(question_embedding, limit=30)
 
         best_chunks = self.reranker.rerank(question, candidates, top_n=settings.TOP_K)
 
@@ -43,75 +54,159 @@ class ChatService:
                     for chunk in best_chunks
                 ]    
             }
-        
-    def ask_for_questions(self) -> dict:
+
+
+    def ask_for_questions(self) -> dict[str, Any]:
         chunks = self.chunk_repo.get_chunks_as_dicts()
 
-        responses = []
-        generated_examples = []
+        if not chunks:
+            return {
+                "questions": [],
+                "groups_created": 0,
+                "examples_created": 0,
+            }
 
-        # 1. Генерируем positive-вопрос для каждого chunk
+        groups: list[dict[str, Any]] = []
+        seen_negative_pairs: set[tuple[str, uuid.UUID]] = set()
+
         for chunk in chunks:
+            text = (chunk.get("chunk_text") or "").strip()
+            if not is_chunk_good_for_qa(text):
+                continue
+
+            # 1. Генерация question + answer
             prompt = build_prompt_question([chunk])
-            question = self.llm_service.generate_answer(prompt)
+            qa_result = self.llm_service.generate_json(prompt)
 
-            responses.append(question)
+            if not qa_result:
+                continue
 
-            self.chunk_repo.create_question(
+            if qa_result.get("skip") is True:
+                continue
+
+            question = str(qa_result.get("question") or "").strip()
+            answer = str(qa_result.get("answer") or "").strip()
+
+            if not question or not answer:
+                continue
+
+            # 3. LLM validation
+            validate_prompt = build_prompt_validate(
                 question=question,
-                chunk_id=chunk["id"],
-                label=True,
-                chunk_text_snapshot=chunk["chunk_text"],
-                split="train",
-                source="generated_positive",
+                answer=answer,
+                chunk_text=text,
             )
+            validation_result = self.llm_service.generate_json(validate_prompt)
 
-            generated_examples.append({
+            if not validation_result:
+                continue
+
+            if validation_result.get("valid") is not True:
+                continue
+
+            if validation_result.get("grounded") is not True:
+                continue
+
+            if validation_result.get("answer_supported") is not True:
+                continue
+
+            group_examples: list[dict[str, Any]] = []
+
+            # positive
+            group_examples.append({
                 "question": question,
                 "chunk_id": chunk["id"],
-                "chunk_text_snapshot": chunk["chunk_text"],
+                "chunk_text_snapshot": text,
+                "label": True,
+                "split": "",
+                "source": "generated_positive",
             })
 
-        try:
-            self.db.commit()
-        except Exception as e:
-            self.db.rollback()
-            print(f"Ошибка при коммите positive examples: {e}")
-            raise
-
-        # 2. Для каждого positive question ищем похожие chunks
-        negative_examples = []
-
-        for example in generated_examples:
-            question_embedding = self.embedding_service.embed_query(example["question"])
-
-            top_chunks = self.vector_search.search(question_embedding, limit=3)
+            # 4. negatives строим только после валидного positive
+            question_embedding = self.embedding_service.embed_query(question)
+            top_chunks = self.vector_search.search(question_embedding, limit=5)
 
             for found_chunk in top_chunks:
-                # пропускаем исходный positive chunk
-                if found_chunk["id"] == example["chunk_id"]:
+                if found_chunk["id"] == chunk["id"]:
                     continue
 
-                negative_examples.append({
-                    "question": example["question"],
+                pair_key = (question, found_chunk["id"])
+                if pair_key in seen_negative_pairs:
+                    continue
+
+                seen_negative_pairs.add(pair_key)
+
+                group_examples.append({
+                    "question": question,
                     "chunk_id": found_chunk["id"],
                     "chunk_text_snapshot": found_chunk["chunk_text"],
                     "label": False,
-                    "split": "train",
+                    "split": "",
                     "source": "generated_negative",
                 })
 
-        if negative_examples:
-            self.chunk_repo.create_questions_bulk(negative_examples)
+            # группа нужна только если есть хотя бы 1 negative
+            if len(group_examples) < 2:
+                continue
+
+            groups.append({
+                "question": question,
+                "answer": answer,
+                "source_chunk_id": chunk["id"],
+                "examples": group_examples,
+            })
+
+        if not groups:
+            return {
+                "questions": [],
+                "groups_created": 0,
+                "examples_created": 0,
+            }
+
+        random.shuffle(groups)
+
+        total_groups = len(groups)
+        train_count = int(total_groups * 0.8)
+        val_count = int(total_groups * 0.1)
+
+        train_groups = groups[:train_count]
+        val_groups = groups[train_count:train_count + val_count]
+        test_groups = groups[train_count + val_count:]
+
+        for group in train_groups:
+            for ex in group["examples"]:
+                ex["split"] = "train"
+
+        for group in val_groups:
+            for ex in group["examples"]:
+                ex["split"] = "val"
+
+        for group in test_groups:
+            for ex in group["examples"]:
+                ex["split"] = "test"
+
+        all_examples: list[dict[str, Any]] = []
+        for group in groups:
+            all_examples.extend(group["examples"])
+
+        if all_examples:
+            self.chunk_repo.create_questions_bulk(all_examples)
 
         try:
             self.db.commit()
         except Exception as e:
             self.db.rollback()
-            print(f"Ошибка при коммите negative examples: {e}")
+            print(f"Ошибка при коммите examples: {e}")
             raise
 
-        return {"questions": responses}
+        return {
+            "questions": [group["question"] for group in groups],
+            "groups_created": len(groups),
+            "examples_created": len(all_examples),
+            "train_groups": len(train_groups),
+            "val_groups": len(val_groups),
+            "test_groups": len(test_groups),
+        }
     
     def train_model(self):
         self.smart_collate.train()

@@ -13,4 +13,5 @@ def get_db():
 
 @router.post("/model/train")
 async def model_train(db=Depends(get_db)):
-    return SmartCollate().train() 
+    service = SmartCollate(db)
+    return service.train() 

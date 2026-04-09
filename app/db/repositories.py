@@ -64,6 +64,95 @@ class ChunkRepository:
         )
 
         return [dict(row._mapping) for row in result]
+    
+    def search_similar_contact_chunks(
+        self,
+        query_embedding: list[float],
+        limit: int = 3,
+        document_id: uuid.UUID | None = None,
+    ) -> list[dict[str, Any]]:
+        embedding_str = "[" + ",".join(map(str, query_embedding)) + "]"
+
+        if document_id is not None:
+            sql = text("""
+                SELECT
+                    c.id,
+                    c.document_id,
+                    c.section_id,
+                    c.chunk_index,
+                    c.chunk_type,
+                    c.chunk_text,
+                    c.chunk_markdown,
+                    c.page_from,
+                    c.page_to,
+                    c.heading_path,
+                    c.metadata_json,
+                    1 - (ce.embedding <=> CAST(:embedding AS vector)) AS similarity
+                FROM document_chunks c
+                JOIN chunk_embeddings ce
+                    ON c.id = ce.chunk_id
+                WHERE c.chunk_type = 'contact'
+                  AND c.document_id = :document_id
+                ORDER BY ce.embedding <=> CAST(:embedding AS vector)
+                LIMIT :limit
+            """)
+            params = {
+                "embedding": embedding_str,
+                "document_id": document_id,
+                "limit": limit,
+            }
+        else:
+            sql = text("""
+                SELECT
+                    c.id,
+                    c.document_id,
+                    c.section_id,
+                    c.chunk_index,
+                    c.chunk_type,
+                    c.chunk_text,
+                    c.chunk_markdown,
+                    c.page_from,
+                    c.page_to,
+                    c.heading_path,
+                    c.metadata_json,
+                    1 - (ce.embedding <=> CAST(:embedding AS vector)) AS similarity
+                FROM document_chunks c
+                JOIN chunk_embeddings ce
+                    ON c.id = ce.chunk_id
+                WHERE c.chunk_type = 'contact'
+                ORDER BY ce.embedding <=> CAST(:embedding AS vector)
+                LIMIT :limit
+            """)
+            params = {
+                "embedding": embedding_str,
+                "limit": limit,
+            }
+
+        result = self.db.execute(sql, params)
+        return [dict(row._mapping) for row in result]
+    
+    def get_sections_for_document(self, document_id: uuid.UUID) -> list[dict[str, Any]]:
+        sql = text("""
+            SELECT
+                id,
+                document_id,
+                section_type,
+                title,
+                heading_level,
+                content_text,
+                content_markdown,
+                page_number,
+                order_index,
+                heading_path,
+                metadata_json
+            FROM document_sections
+            WHERE document_id = :document_id
+            ORDER BY order_index ASC
+        """)
+
+        result = self.db.execute(sql, {"document_id": document_id})
+        return [dict(row._mapping) for row in result]
+
 
     def get_chunks(self) -> list[DocumentChunk]:
         """
@@ -220,3 +309,23 @@ class ChunkRepository:
             stmt = stmt.limit(limit)
 
         return list(self.db.scalars(stmt).all())
+    
+    def bulk_create(self, chunks: list[DocumentChunk]) -> list[DocumentChunk]:
+        if not chunks:
+            return []
+
+        self.db.add_all(chunks)
+        self.db.commit()
+
+        for chunk in chunks:
+            self.db.refresh(chunk)
+
+        return chunks
+
+    def get_document_chunks(self, document_id):
+        stmt = (
+            select(DocumentChunk)
+            .where(DocumentChunk.document_id == document_id)
+            .order_by(DocumentChunk.chunk_index.asc())
+        )
+        return list(self.db.scalars(stmt))

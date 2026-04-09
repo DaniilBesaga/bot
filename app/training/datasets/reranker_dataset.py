@@ -1,20 +1,20 @@
 import json
 from pathlib import Path
+from sqlalchemy.orm import Session
 from torch.utils.data import Dataset
 
 class RerankerDataset(Dataset):
-    def __init__(self, sql: str, db):
-        self.db = db
+    def __init__(self, sql: str, db: Session):
         self.items = []
 
         try:
-            training_data = self.db.engine.execute(sql)
-            if training_data is not None:
+            result = db.execute(sql)
+            if result is not None:
                 self.items = [{
-                    "question": training_data.question,
-                    "chunk": training_data.chunk.text,
-                    "label": training_data.label
-                } for training_data in training_data]
+                    "question": row.question,
+                    "chunk": row.chunk_text,  # Теперь это поле доступно благодаря JOIN
+                    "label": row.label
+                } for row in result]
         except Exception as e:
             print(f"Error: {e}")
             raise

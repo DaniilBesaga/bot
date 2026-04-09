@@ -24,3 +24,6 @@ class DocumentRepository:
 
     def get_by_id(self, document_id) -> Document | None:
         return self.db.get(Document, document_id)
+    
+    def get_by_file_path(self, file_path) -> Document | None:
+        return self.db.query(Document).filter(Document.file_path == file_path).first()

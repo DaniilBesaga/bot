@@ -1,5 +1,6 @@
 from openai import OpenAI
 from app.core.config import settings
+from app.services.retrieval.json_parser import extract_json_object
 
 class LlmService:
     def __init__(self):
@@ -9,11 +10,14 @@ class LlmService:
             base_url=getattr(settings, "OPENAI_API_BASE", None)
         )
 
-    def generate_answer (self, prompt: str) -> str:
-        # В библиотеке OpenAI нет метода .responses.create
-        # Используем стандартный .chat.completions.create
+    def generate_answer(self, prompt: str) -> str:
         response = self.client.chat.completions.create(
-            model=settings.CHAT_MODEL, 
-            messages=[{"role": "user", "content": prompt}]
+            model=settings.CHAT_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0,
         )
-        return response.choices[0].message.content
+        return response.choices[0].message.content or ""
+
+    def generate_json(self, prompt: str) -> dict | None:
+        raw = self.generate_answer(prompt)
+        return extract_json_object(raw)

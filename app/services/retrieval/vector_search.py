@@ -6,3 +6,6 @@ class VectorSearchService:
 
     def search(self, query_embedding: list[float], limit: int = 5):
         return self.chunk_repo.search_similar(query_embedding, limit)
+    
+    def search_contact_chunks(self, query_embedding: list[float], limit: int = 3):
+        return self.chunk_repo.search_similar_contact_chunks(query_embedding, limit)
