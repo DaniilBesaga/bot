@@ -25,7 +25,7 @@ class ChatService:
         self.chunk_repo = ChunkRepository(db)
         self.db = db
         #self.smart_collate = SmartCollate(tokenizer=AutoTokenizer.from_pretrained("distilbert-base-uncased"))
-        self.smart_collate = SmartCollate()
+        self.smart_collate = SmartCollate(db)
 
     def ask(self, question: str) -> dict:
         question_embedding = self.embedding_service.embed_query(question)

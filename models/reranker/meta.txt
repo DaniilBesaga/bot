@@ -1,2 +1,2 @@
 base_model=distilbert-base-uncased
-max_length=384
+max_length=256

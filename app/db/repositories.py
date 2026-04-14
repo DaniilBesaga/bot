@@ -183,7 +183,7 @@ class ChunkRepository:
             DocumentChunk.heading_path,
             DocumentChunk.metadata_json,
             DocumentChunk.created_at,
-        ).order_by(DocumentChunk.created_at.desc())
+        ).order_by(DocumentChunk.created_at.asc()).offset(275)
 
         result = self.db.execute(stmt)
         return [dict(row._mapping) for row in result]

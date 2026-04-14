@@ -11,7 +11,7 @@ from app.training.datasets.reranker_dataset import RerankerDataset
 from app.services.retrieval.my_reranker import MyReranker
 
 class SmartCollate:
-    def __init__(self, db, max_length=384):
+    def __init__(self, db, max_length=256):
         self.max_length = max_length
         self.db = db
         self.tokenizer = AutoTokenizer.from_pretrained("distilbert-base-uncased")
@@ -76,7 +76,7 @@ class SmartCollate:
                 FROM reranker_examples e
                 JOIN document_chunks c ON e.chunk_id = c.id
                 WHERE e.split = 'train' 
-                LIMIT 100
+                
             """)
         train_dataset = RerankerDataset(train_sql, self.db)
 
@@ -85,7 +85,7 @@ class SmartCollate:
                 FROM reranker_examples e
                 JOIN document_chunks c ON e.chunk_id = c.id
                 WHERE e.split = 'val' 
-                LIMIT 100
+                
             """)
         val_dataset = RerankerDataset(val_sql, self.db)
 
@@ -112,7 +112,7 @@ class SmartCollate:
         optimizer = AdamW(model.parameters(), lr=2e-5)
         loss_fn = torch.nn.BCEWithLogitsLoss()
 
-        epochs = 3
+        epochs = 10
         best_val_loss = float("inf")
 
         save_dir = Path("models/reranker")
@@ -154,6 +154,6 @@ class SmartCollate:
 
                 with open(save_dir / "meta.txt", "w", encoding="utf-8") as f:
                     f.write("base_model=distilbert-base-uncased\n")
-                    f.write("max_length=384\n")
+                    f.write("max_length=256\n")
 
                 print("Saved best reranker.")

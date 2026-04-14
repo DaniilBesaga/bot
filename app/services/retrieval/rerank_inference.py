@@ -32,7 +32,7 @@ class MyRerankerService:
                 questions = [question] * len(batch_chunks)
                 texts = [chunk["text"] for chunk in batch_chunks]
 
-                encoded = self.model.tokenize_pairs(questions, texts, max_length=384)
+                encoded = self.model.tokenize_pairs(questions, texts, max_length=256)
                 encoded = {k: v.to(self.device) for k, v in encoded.items()}
 
                 logits = self.model(
