@@ -8,6 +8,9 @@ from app.core.config import settings
 from app.db.repositories import ChunkRepository
 from app.services.contact.is_contact_query import is_contact_query
 from app.services.embeddings.embedding_service import EmbeddingService
+from app.services.language.chunk_trans_service import ChunkTranslationService
+from app.services.language.deepl import DeepLTranslationService
+from app.services.language.translate_pipeline import TranslatePipeline
 from app.services.retrieval.json_parser import is_chunk_good_for_qa
 from app.services.retrieval.prompt_builder import build_prompt, build_prompt_question, build_prompt_validate
 from app.services.retrieval.vector_search import VectorSearchService
@@ -19,6 +22,7 @@ from app.training.train_reranker import SmartCollate
 class ChatService:
     def __init__(self, db):
         self.llm_service = LlmService()
+        self.translation_service = DeepLTranslationService()
         self.embedding_service = EmbeddingService()
         self.vector_search = VectorSearchService(db)
         # self.reranker = MyRerankerService(model_dir="models/reranker")
@@ -70,7 +74,7 @@ class ChatService:
         seen_negative_pairs: set[tuple[str, uuid.UUID]] = set()
 
         for chunk in chunks:
-            text = (chunk.get("chunk_text") or "").strip()
+            text = ((chunk.get("is_translated_to_ro") and chunk.get("translated_text_ro")) or chunk.get("chunk_text") or "").strip()
             if not is_chunk_good_for_qa(text):
                 continue
 
@@ -211,3 +215,8 @@ class ChatService:
     def train_model(self):
         self.smart_collate.train()
 
+    def ask_for_translate(self):
+        pipeline = TranslatePipeline(self.db,
+                                    chunk_repo=self.chunk_repo,
+                                    translation_service=self.translation_service)
+        return pipeline.execute()

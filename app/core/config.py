@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     CHAT_MODEL: str
     TOP_K: int = 5
     OPENAI_API_BASE: str
+    DEEPL_API_KEY: str | None = None
+    DEEPL_TARGET_LANG: str = "RO"
+    DEEPL_GLOSSARY_ID: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

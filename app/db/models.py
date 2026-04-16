@@ -78,6 +78,13 @@ class DocumentChunk(Base):
         nullable=False,
     )
 
+    original_language: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    translated_text_ro: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    is_translated_to_ro: Mapped[bool] = mapped_column(Boolean, default=False, nullable=True)
+    translation_status: Mapped[str | None] = mapped_column(String(30), nullable=True)  # pending/done/failed/skipped
+    translation_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
+
     document = relationship("Document", back_populates="chunks")
     section = relationship("DocumentSection", back_populates="chunks")
     embedding = relationship("ChunkEmbedding", back_populates="chunk", cascade="all, delete-orphan", uselist=False)

@@ -34,3 +34,6 @@ python-dateutil
 pytz
 openai
 llama_cloud
+lingua-language-detector 
+langdetect
+deepl

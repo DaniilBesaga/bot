@@ -178,6 +178,8 @@ class ChunkRepository:
             DocumentChunk.chunk_text,
             DocumentChunk.chunk_markdown,
             DocumentChunk.page_from,
+            DocumentChunk.translated_text_ro,
+            DocumentChunk.is_translated_to_ro,
             DocumentChunk.page_to,
             DocumentChunk.token_count,
             DocumentChunk.heading_path,
@@ -329,3 +331,31 @@ class ChunkRepository:
             .order_by(DocumentChunk.chunk_index.asc())
         )
         return list(self.db.scalars(stmt))
+    
+    def get_chunks_without_ro_translation(self, limit: int | None = None) -> list[DocumentChunk]:
+        query = self.db.query(DocumentChunk).filter(
+            (DocumentChunk.translated_text_ro.is_(None)) |
+            (DocumentChunk.translation_status.in_(["pending", "failed"]))
+        )
+        if limit:
+            query = query.limit(limit)
+        return query.all()
+
+    def update_translation_fields(
+        self,
+        chunk: DocumentChunk,
+        *,
+        original_language: str | None,
+        translated_text_ro: str | None,
+        is_translated_to_ro: bool,
+        translation_status: str,
+        translation_model: str | None = None,
+    ) -> DocumentChunk:
+        chunk.original_language = original_language
+        chunk.translated_text_ro = translated_text_ro
+        chunk.is_translated_to_ro = is_translated_to_ro
+        chunk.translation_status = translation_status
+        chunk.translation_model = translation_model
+        self.db.add(chunk)
+        self.db.flush()
+        return chunk
