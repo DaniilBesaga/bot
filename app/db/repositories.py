@@ -359,3 +359,37 @@ class ChunkRepository:
         self.db.add(chunk)
         self.db.flush()
         return chunk
+    
+    def create_question(
+        self,
+        question: str,
+        chunk_id: uuid.UUID,
+        chunk_text_snapshot: str,
+        label: bool,
+        split: str,
+        source: str | None = None,
+    ):
+        entity = RerankerExample(
+            question=question,
+            chunk_id=chunk_id,
+            chunk_text_snapshot=chunk_text_snapshot,
+            label=label,
+            split=split,
+            source=source,
+        )
+        self.db.add(entity)
+        self.db.flush()
+        return entity
+    
+    def update_questions_split(self, example_ids: list[uuid.UUID], split: str) -> None:
+        if not example_ids:
+            return
+
+        (
+            self.db.query(RerankerExample)
+            .filter(RerankerExample.id.in_(example_ids))
+            .update(
+                {"split": split},
+                synchronize_session=False,
+            )
+        )
